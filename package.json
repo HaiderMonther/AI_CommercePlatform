@@ -1,0 +1,30 @@
+{
+  "name": "ai-commerce-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Sales & Commerce Management Platform for the Iraqi and Arabic market",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "api": "npm run -w @ai-commerce/api",
+    "web": "npm run -w @ai-commerce/web",
+    "dev": "npm-run-all --parallel dev:api dev:web",
+    "dev:api": "npm run -w @ai-commerce/api start:dev",
+    "dev:web": "npm run -w @ai-commerce/web dev",
+    "build": "npm run -w @ai-commerce/api build && npm run -w @ai-commerce/web build",
+    "lint": "npm run -w @ai-commerce/api lint && npm run -w @ai-commerce/web lint",
+    "typecheck": "npm run -w @ai-commerce/api typecheck && npm run -w @ai-commerce/web typecheck",
+    "test": "npm run -w @ai-commerce/api test",
+    "test:e2e": "npm run -w @ai-commerce/api test:e2e",
+    "db:migrate": "npm run -w @ai-commerce/api db:migrate",
+    "db:seed": "npm run -w @ai-commerce/api db:seed"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
+  }
+}
