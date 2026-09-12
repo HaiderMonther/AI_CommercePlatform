@@ -1,0 +1,109 @@
+name: ai-commerce-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aicp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aicommerce}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aicommerce}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_commerce}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-aicommerce} -d ${POSTGRES_DB:-ai_commerce}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [aicp]
+
+  redis:
+    image: redis:7-alpine
+    container_name: aicp-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [aicp]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: aicp-api
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_PREFIX: api/v1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aicommerce}:${POSTGRES_PASSWORD:-aicommerce}@postgres:5432/${POSTGRES_DB:-ai_commerce}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_VERIFY_TOKEN: ${META_VERIFY_TOKEN:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+    ports:
+      - '${API_PORT:-3000}:3000'
+    networks: [aicp]
+
+  # Applies pending migrations and syncs reference data, then exits. Keeping this out of
+  # the API container means scaling the API to N replicas never races on migrations.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: aicp-migrate
+    restart: 'no'
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aicommerce}:${POSTGRES_PASSWORD:-aicommerce}@postgres:5432/${POSTGRES_DB:-ai_commerce}?schema=public
+      SEED_SUPER_ADMIN_EMAIL: ${SEED_SUPER_ADMIN_EMAIL:-admin@ai-commerce.iq}
+      SEED_SUPER_ADMIN_PASSWORD: ${SEED_SUPER_ADMIN_PASSWORD:-Admin@12345}
+    entrypoint: ['sh', '-c']
+    # Reference data only: permissions, plans and the platform admin. No demo tenant.
+    command: ['npx prisma migrate deploy && node dist-seed/prisma/seed.js --reference-only']
+    networks: [aicp]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    container_name: aicp-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    networks: [aicp]
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  aicp:
+    driver: bridge

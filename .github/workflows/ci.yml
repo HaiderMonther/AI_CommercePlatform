@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'claude/**']
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  api:
+    name: API - lint, typecheck, test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aicommerce
+          POSTGRES_PASSWORD: aicommerce
+          POSTGRES_DB: ai_commerce_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://aicommerce:aicommerce@localhost:5432/ai_commerce_test?schema=public
+      TEST_DATABASE_URL: postgresql://aicommerce:aicommerce@localhost:5432/ai_commerce_test?schema=public
+      REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run -w @ai-commerce/api db:generate
+
+      - name: Lint
+        run: npm run -w @ai-commerce/api lint
+
+      - name: Typecheck
+        run: npm run -w @ai-commerce/api typecheck
+
+      - name: Unit tests
+        run: npm run -w @ai-commerce/api test
+
+      - name: Apply migrations
+        run: npm run -w @ai-commerce/api db:migrate
+
+      - name: Seed reference data
+        run: npm run -w @ai-commerce/api db:seed -- --reference-only
+
+      - name: End-to-end tests (auth, RBAC, tenant isolation)
+        run: npm run -w @ai-commerce/api test:e2e
+
+      - name: Build
+        run: npm run -w @ai-commerce/api build
+
+  web:
+    name: Web - lint, typecheck, test, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      # The web app imports no Prisma types, but the postinstall of the workspace root
+      # expects the client to exist.
+      - name: Generate Prisma client
+        run: npm run -w @ai-commerce/api db:generate
+
+      - name: Lint
+        run: npm run -w @ai-commerce/web lint
+
+      - name: Typecheck
+        run: npm run -w @ai-commerce/web typecheck
+
+      - name: Unit tests
+        run: npm run -w @ai-commerce/web test
+
+      - name: Build
+        run: npm run -w @ai-commerce/web build
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    needs: [api, web]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
