@@ -1,0 +1,67 @@
+/* Arabic-first typography. Cairo reads well at dashboard sizes and covers Arabic
+   numerals; the system stack keeps the UI usable before the webfont loads. */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap');
+
+:root {
+  --aicp-font: 'Cairo', 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: var(--aicp-font);
+  margin: 0;
+}
+
+.v-application {
+  font-family: var(--aicp-font) !important;
+}
+
+/* Keeps digits aligned in tables; the locale in utils/format.ts emits Latin numerals. */
+.numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  direction: ltr;
+  display: inline-block;
+  unicode-bidi: isolate;
+}
+
+.page-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.page-subtitle {
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* A slimmer scrollbar keeps long tables from feeling cramped. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.35);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.55);
+}
+
+@media (max-width: 600px) {
+  .page-title {
+    font-size: 1.125rem;
+  }
+}
