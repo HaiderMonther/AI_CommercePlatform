@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaClient } from '@prisma/client';
+import type { Server } from 'node:http';
 import request from 'supertest';
 import { AppModule } from '@/app.module';
 import TestAgent from 'supertest/lib/agent';
@@ -22,10 +23,20 @@ export async function createTestApp(): Promise<TestContext> {
   app.setGlobalPrefix('api/v1', { exclude: ['health', 'health/live'] });
   await app.init();
 
+  // Bind the server once up front and reuse a single agent. Building a fresh agent per
+  // call makes supertest start listening on demand, and a Promise.all of parallel
+  // requests then races to bind, surfacing as ECONNRESET instead of a real response.
+  const server = app.getHttpServer() as Server;
+  if (!server.listening) {
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+  }
+
+  const agent = request(server);
+
   return {
     app,
     prisma: app.get(PrismaService),
-    http: () => request(app.getHttpServer()),
+    http: () => agent,
   };
 }
 
