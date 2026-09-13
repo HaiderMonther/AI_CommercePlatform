@@ -226,6 +226,185 @@ async function seedDemoCompany(): Promise<void> {
   console.log(`  login: ${DEMO.owner.email} / ${DEMO.owner.password}`);
 }
 
+const CATEGORIES = [
+  { name: 'ملابس رجالية', children: ['قمصان', 'بناطيل'] },
+  { name: 'ملابس نسائية', children: ['فساتين', 'عبايات'] },
+  { name: 'أحذية', children: [] },
+  { name: 'حقائب', children: [] },
+  { name: 'إكسسوارات', children: [] },
+];
+
+const PRODUCT_NAMES = [
+  'قميص قطني كلاسيك', 'قميص كتان صيفي', 'قميص رسمي أبيض', 'تيشيرت قطن',
+  'بنطلون جينز', 'بنطلون قماش رسمي', 'شورت رياضي', 'بدلة رسمية',
+  'فستان سهرة', 'فستان صيفي', 'عباية سوداء مطرزة', 'عباية يومية',
+  'حذاء رياضي', 'حذاء رسمي جلد', 'صندل صيفي', 'بوت شتوي',
+  'حقيبة يد نسائية', 'حقيبة ظهر', 'حقيبة سفر', 'محفظة جلد',
+  'حزام جلد', 'نظارة شمسية', 'ساعة يد', 'وشاح صوف',
+  'قبعة صيفية', 'جوارب قطن', 'ربطة عنق', 'قفازات جلد',
+  'معطف شتوي', 'جاكيت جينز',
+];
+
+/**
+ * Which category each product belongs in, as an index into the flattened category list
+ * [رجالية, قمصان, بناطيل, نسائية, فساتين, عبايات, أحذية, حقائب, إكسسوارات].
+ * Mapped by hand so the demo catalog reads like a real store rather than random pairings.
+ */
+const PRODUCT_CATEGORY_INDEX = [
+  1, 1, 1, 1, // قمصان وتيشيرت
+  2, 2, 2, 2, // بناطيل وشورت وبدلة
+  4, 4, // فساتين
+  5, 5, // عبايات
+  6, 6, 6, 6, // أحذية
+  7, 7, 7, 7, // حقائب ومحفظة
+  8, 8, 8, 8, 8, 8, 8, 8, // إكسسوارات
+  0, 0, // معاطف ضمن الملابس الرجالية
+];
+
+const COLORS = ['أسود', 'أبيض', 'أزرق', 'رمادي'];
+const SIZES = ['S', 'M', 'L', 'XL'];
+
+function skuFrom(index: number): string {
+  return `PRD-${String(index + 1).padStart(4, '0')}`;
+}
+
+async function seedCatalog(companyId: string, userId: string | null): Promise<void> {
+  const existing = await prisma.product.count({ where: { companyId } });
+  if (existing > 0) {
+    console.log('• catalog already present');
+    return;
+  }
+
+  const categoryIds: string[] = [];
+
+  for (const [index, definition] of CATEGORIES.entries()) {
+    const parent = await prisma.category.create({
+      data: {
+        companyId,
+        name: definition.name,
+        slug: `cat-${index + 1}`,
+        sortOrder: index,
+      },
+    });
+    categoryIds.push(parent.id);
+
+    for (const [childIndex, childName] of definition.children.entries()) {
+      const child = await prisma.category.create({
+        data: {
+          companyId,
+          name: childName,
+          slug: `cat-${index + 1}-${childIndex + 1}`,
+          parentId: parent.id,
+          sortOrder: childIndex,
+        },
+      });
+      categoryIds.push(child.id);
+    }
+  }
+
+  for (const [index, name] of PRODUCT_NAMES.entries()) {
+    const price = 15000 + ((index * 7919) % 20) * 2500;
+    const cost = Math.round(price * 0.65);
+    // Every fifth product carries colour/size variants, so the demo covers both shapes.
+    const withVariants = index % 5 === 0;
+    const stock = withVariants ? 0 : 3 + ((index * 31) % 40);
+
+    const product = await prisma.product.create({
+      data: {
+        companyId,
+        categoryId: categoryIds[PRODUCT_CATEGORY_INDEX[index] ?? 0],
+        name,
+        sku: skuFrom(index),
+        description: `${name} بخامة عالية الجودة، متوفر بعدة ألوان ومقاسات. التوصيل لجميع المحافظات.`,
+        price: new Prisma.Decimal(price),
+        salePrice: index % 4 === 0 ? new Prisma.Decimal(Math.round(price * 0.85)) : null,
+        costPrice: new Prisma.Decimal(cost),
+        stock,
+        lowStockThreshold: 5,
+        hasVariants: withVariants,
+        tags: index % 3 === 0 ? ['الأكثر مبيعاً'] : [],
+        isActive: index % 11 !== 0,
+        images: {
+          create: [
+            { url: `https://picsum.photos/seed/product-${index + 1}/600/600`, isPrimary: true, sortOrder: 0 },
+          ],
+        },
+      },
+    });
+
+    if (stock > 0) {
+      await prisma.inventoryMovement.create({
+        data: {
+          companyId,
+          productId: product.id,
+          type: 'STOCK_IN',
+          quantity: stock,
+          quantityBefore: 0,
+          quantityAfter: stock,
+          unitCost: new Prisma.Decimal(cost),
+          reason: 'رصيد افتتاحي',
+          referenceType: 'Import',
+          userId,
+        },
+      });
+    }
+
+    if (!withVariants) {
+      continue;
+    }
+
+    let productStock = 0;
+
+    for (const [variantIndex, color] of COLORS.slice(0, 2).entries()) {
+      for (const [sizeIndex, size] of SIZES.slice(0, 2).entries()) {
+        const variantStock = 2 + ((index + variantIndex + sizeIndex) * 13) % 25;
+        productStock += variantStock;
+
+        const variant = await prisma.productVariant.create({
+          data: {
+            companyId,
+            productId: product.id,
+            sku: `${skuFrom(index)}-${color.slice(0, 3)}-${size}`,
+            name: `${color} / ${size}`,
+            attributes: { color, size },
+            costPrice: new Prisma.Decimal(cost),
+            stock: variantStock,
+          },
+        });
+
+        await prisma.inventoryMovement.create({
+          data: {
+            companyId,
+            productId: product.id,
+            variantId: variant.id,
+            type: 'STOCK_IN',
+            quantity: variantStock,
+            quantityBefore: 0,
+            quantityAfter: variantStock,
+            unitCost: new Prisma.Decimal(cost),
+            reason: 'رصيد افتتاحي',
+            referenceType: 'Import',
+            userId,
+          },
+        });
+      }
+    }
+
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { stock: productStock },
+    });
+  }
+
+  const [categories, products, variants] = await Promise.all([
+    prisma.category.count({ where: { companyId } }),
+    prisma.product.count({ where: { companyId } }),
+    prisma.productVariant.count({ where: { companyId } }),
+  ]);
+
+  console.log(`✓ catalog: ${categories} categories, ${products} products, ${variants} variants`);
+}
+
 async function main(): Promise<void> {
   const referenceOnly = process.argv.includes('--reference-only');
 
@@ -236,6 +415,15 @@ async function main(): Promise<void> {
 
   if (!referenceOnly) {
     await seedDemoCompany();
+
+    const demo = await prisma.company.findUnique({ where: { slug: DEMO.slug } });
+    if (demo) {
+      const owner = await prisma.user.findFirst({
+        where: { companyId: demo.id, email: DEMO.owner.email },
+        select: { id: true },
+      });
+      await seedCatalog(demo.id, owner?.id ?? null);
+    }
   }
 
   console.log('Done.');

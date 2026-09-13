@@ -207,6 +207,140 @@ describe('Multi-tenant isolation (e2e)', () => {
     expect(betaStats.body.data.users).toBe(2);
   });
 
+  describe('Catalog isolation', () => {
+    let alphaProductId: string;
+    let betaProductId: string;
+    let betaVariantId: string;
+
+    beforeAll(async () => {
+      const alphaProduct = await ctx
+        .http()
+        .post('/api/v1/products')
+        .set('Authorization', bearer(alpha.accessToken))
+        .send({ name: 'منتج ألفا', sku: 'SHARED-SKU', price: 10000, initialStock: 5 })
+        .expect(201);
+      alphaProductId = alphaProduct.body.data.id;
+
+      const betaProduct = await ctx
+        .http()
+        .post('/api/v1/products')
+        .set('Authorization', bearer(beta.accessToken))
+        // The same SKU in another company must be allowed: uniqueness is per tenant.
+        .send({ name: 'منتج بيتا', sku: 'SHARED-SKU', price: 20000, initialStock: 8 })
+        .expect(201);
+      betaProductId = betaProduct.body.data.id;
+
+      const betaVariant = await ctx
+        .http()
+        .post(`/api/v1/products/${betaProductId}/variants`)
+        .set('Authorization', bearer(beta.accessToken))
+        .send({ attributes: { size: 'M' }, initialStock: 4 })
+        .expect(201);
+      betaVariantId = betaVariant.body.data.id;
+    });
+
+    it('allows the same SKU in two different companies', async () => {
+      expect(alphaProductId).not.toBe(betaProductId);
+    });
+
+    it('lists only the caller own products', async () => {
+      const response = await ctx
+        .http()
+        .get('/api/v1/products')
+        .set('Authorization', bearer(alpha.accessToken))
+        .expect(200);
+
+      const names = response.body.data.items.map((item: { name: string }) => item.name);
+      expect(names).toContain('منتج ألفا');
+      expect(names).not.toContain('منتج بيتا');
+    });
+
+    it('returns 404 when reading another company product by id', async () => {
+      const response = await ctx
+        .http()
+        .get(`/api/v1/products/${betaProductId}`)
+        .set('Authorization', bearer(alpha.accessToken))
+        .expect(404);
+
+      expect(response.body.code).toBe('PRODUCT_NOT_FOUND');
+    });
+
+    it('refuses to move another company stock', async () => {
+      await ctx
+        .http()
+        .post('/api/v1/inventory/adjust')
+        .set('Authorization', bearer(alpha.accessToken))
+        .send({ productId: betaProductId, type: 'STOCK_OUT', quantity: 1 })
+        .expect(404);
+
+      const untouched = await ctx.prisma.product.findUniqueOrThrow({
+        where: { id: betaProductId },
+      });
+      expect(untouched.stock).toBe(4);
+    });
+
+    it('refuses to touch another company variant', async () => {
+      await ctx
+        .http()
+        .post('/api/v1/inventory/adjust')
+        .set('Authorization', bearer(alpha.accessToken))
+        .send({ productId: betaProductId, variantId: betaVariantId, type: 'STOCK_OUT', quantity: 1 })
+        .expect(404);
+
+      const untouched = await ctx.prisma.productVariant.findUniqueOrThrow({
+        where: { id: betaVariantId },
+      });
+      expect(untouched.stock).toBe(4);
+    });
+
+    it('never leaks another company inventory movements', async () => {
+      const response = await ctx
+        .http()
+        .get('/api/v1/inventory/movements?limit=100')
+        .set('Authorization', bearer(alpha.accessToken))
+        .expect(200);
+
+      const foreign = response.body.data.items.filter(
+        (movement: { companyId: string }) => movement.companyId !== alpha.companyId,
+      );
+      expect(foreign).toEqual([]);
+    });
+
+    it('scopes the inventory summary to the caller tenant', async () => {
+      const [alphaSummary, betaSummary] = await Promise.all([
+        ctx
+          .http()
+          .get('/api/v1/inventory/summary')
+          .set('Authorization', bearer(alpha.accessToken))
+          .expect(200),
+        ctx
+          .http()
+          .get('/api/v1/inventory/summary')
+          .set('Authorization', bearer(beta.accessToken))
+          .expect(200),
+      ]);
+
+      expect(alphaSummary.body.data.totalUnits).toBe(5);
+      expect(betaSummary.body.data.totalUnits).toBe(4);
+    });
+
+    it('refuses to assign a product to another company category', async () => {
+      const betaCategory = await ctx
+        .http()
+        .post('/api/v1/categories')
+        .set('Authorization', bearer(beta.accessToken))
+        .send({ name: 'تصنيف بيتا' })
+        .expect(201);
+
+      await ctx
+        .http()
+        .patch(`/api/v1/products/${alphaProductId}`)
+        .set('Authorization', bearer(alpha.accessToken))
+        .send({ categoryId: betaCategory.body.data.id })
+        .expect(400);
+    });
+  });
+
   it('keeps audit trails separate', async () => {
     const response = await ctx
       .http()
