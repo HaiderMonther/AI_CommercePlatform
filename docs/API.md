@@ -206,6 +206,72 @@
    "permissions": [{ "key": "orders.read", "description": "عرض الطلبات" }] }]
 ```
 
+### التصنيفات
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/categories` | `categories.read` |
+| `GET` | `/categories/:id` | `categories.read` |
+| `POST` | `/categories` | `categories.create` |
+| `PATCH` | `/categories/:id` | `categories.update` |
+| `DELETE` | `/categories/:id` | `categories.delete` |
+
+`?tree=true` يُرجع الشجرة متداخلة. التصنيف الذي يحتوي منتجات أو فروعاً لا يُحذف،
+ولا يمكن جعل تصنيف تابعاً لأحد فروعه، والعمق محدود بأربعة مستويات.
+
+### المنتجات والمتغيرات
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/products` | `products.read` |
+| `GET` | `/products/:id` | `products.read` |
+| `POST` | `/products` | `products.create` |
+| `PATCH` | `/products/:id` | `products.update` |
+| `DELETE` | `/products/:id` | `products.delete` |
+| `GET` | `/products/:id/variants` | `products.read` |
+| `POST` | `/products/:id/variants` | `products.update` |
+| `PATCH` | `/products/:id/variants/:variantId` | `products.update` |
+| `DELETE` | `/products/:id/variants/:variantId` | `products.delete` |
+
+مرشّحات القائمة: `categoryId`، `isActive`، `lowStock`، `outOfStock`، `search`
+(الاسم أو الرمز أو الوصف أو الوسوم)، و`sortBy` من `createdAt|name|price|stock`.
+
+**الكمية غير قابلة للتعديل من نقاط المنتج.** `initialStock` يُقبل عند الإنشاء فقط
+ويُسجَّل كحركة إدخال، وأي تغيير لاحق يمر عبر `POST /inventory/adjust`.
+
+رمز المنتج يُولَّد تلقائياً إن لم يُرسل، وهو فريد داخل الشركة فقط — شركتان مختلفتان
+قد تستخدمان الرمز نفسه. الحذف ناعم ويحرّر الرمز لإعادة الاستخدام.
+
+أول متغير يحوّل المنتج إلى منتج بمتغيرات: يصبح مخزونه مجموع متغيراته، وتُنقل كميته
+السابقة بحركة `STOCK_OUT` مسجّلة بدل أن تختفي. ولا يُسمح بمتغيرين بنفس الخصائص.
+
+### المخزون
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/inventory/movements` | `inventory.read` |
+| `POST` | `/inventory/adjust` | `inventory.adjust` |
+| `GET` | `/inventory/low-stock` | `inventory.read` |
+| `GET` | `/inventory/summary` | `inventory.read` |
+
+`POST /inventory/adjust`
+
+```json
+{ "productId": "c...", "variantId": "c...", "type": "STOCK_IN", "quantity": 10, "reason": "شحنة جديدة" }
+```
+
+| النوع | الأثر | معنى `quantity` |
+| --- | --- | --- |
+| `STOCK_IN` | +المخزون | مقدار الزيادة |
+| `RETURN` | +المخزون | مقدار الإرجاع |
+| `STOCK_OUT` | −المخزون | مقدار النقص |
+| `ADJUSTMENT` | ضبط مطلق | **الكمية النهائية** بعد الجرد، لا الفرق |
+| `SALE` · `RESERVATION` · `RELEASE` | — | خاصة بدورة الطلبات، مرفوضة يدوياً |
+
+كل حركة تُخزَّن بالقيمة المُوقَّعة مع `quantityBefore` و`quantityAfter`، فمجموع
+الحركات يساوي المخزون الحالي دائماً. المخزون لا يصبح سالباً: محاولة تجاوز المتوفر
+تُرجع `409 INSUFFICIENT_STOCK`.
+
 ### سجل العمليات
 
 | الطريقة | المسار | الصلاحية |
@@ -256,7 +322,6 @@
 
 | المرحلة | النقاط |
 | --- | --- |
-| 2 | `/products` · `/products/:id/variants` · `/categories` · `/inventory/movements` · `/inventory/adjust` |
 | 3 | `/customers` · `/conversations` · `/conversations/:id/messages` · `/conversations/:id/assign` |
 | 4 | `/orders` · `/orders/:id/status` · `/orders/:id/items` |
 | 5 | `/channels` · `/webhooks/whatsapp` · `/webhooks/instagram` · `/webhooks/facebook` |
