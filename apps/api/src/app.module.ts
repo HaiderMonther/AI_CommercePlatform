@@ -16,9 +16,12 @@ import { ResponseInterceptor } from '@common/interceptors/response.interceptor';
 import { PrismaModule } from '@common/prisma/prisma.module';
 import { AuditModule } from '@modules/audit/audit.module';
 import { AuthModule } from '@modules/auth/auth.module';
+import { CategoriesModule } from '@modules/categories/categories.module';
 import { CompaniesModule } from '@modules/companies/companies.module';
 import { HealthModule } from '@modules/health/health.module';
+import { InventoryModule } from '@modules/inventory/inventory.module';
 import { PermissionsModule } from '@modules/permissions/permissions.module';
+import { ProductsModule } from '@modules/products/products.module';
 import { RolesModule } from '@modules/roles/roles.module';
 import { UsersModule } from '@modules/users/users.module';
 
@@ -71,6 +74,9 @@ import { UsersModule } from '@modules/users/users.module';
     UsersModule,
     RolesModule,
     PermissionsModule,
+    CategoriesModule,
+    ProductsModule,
+    InventoryModule,
   ],
   providers: [
     {
