@@ -60,7 +60,6 @@ const navSections = computed(() => {
 const upcoming = [
   { title: 'المحادثات', icon: 'mdi-forum-outline' },
   { title: 'الطلبات', icon: 'mdi-cart-outline' },
-  { title: 'المنتجات', icon: 'mdi-package-variant-closed' },
   { title: 'الزبائن', icon: 'mdi-account-heart-outline' },
   { title: 'التقارير', icon: 'mdi-chart-box-outline' },
 ];

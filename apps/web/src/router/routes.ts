@@ -37,6 +37,36 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: 'لوحة التحكم', icon: 'mdi-view-dashboard-outline' },
       },
       {
+        path: 'products',
+        name: 'products',
+        component: () => import('@/views/catalog/ProductsView.vue'),
+        meta: {
+          title: 'المنتجات',
+          icon: 'mdi-package-variant-closed',
+          permissions: [PERMISSIONS.PRODUCTS_READ],
+        },
+      },
+      {
+        path: 'categories',
+        name: 'categories',
+        component: () => import('@/views/catalog/CategoriesView.vue'),
+        meta: {
+          title: 'التصنيفات',
+          icon: 'mdi-shape-outline',
+          permissions: [PERMISSIONS.CATEGORIES_READ],
+        },
+      },
+      {
+        path: 'inventory',
+        name: 'inventory',
+        component: () => import('@/views/catalog/InventoryView.vue'),
+        meta: {
+          title: 'المخزون',
+          icon: 'mdi-warehouse',
+          permissions: [PERMISSIONS.INVENTORY_READ],
+        },
+      },
+      {
         path: 'users',
         name: 'users',
         component: () => import('@/views/settings/UsersView.vue'),

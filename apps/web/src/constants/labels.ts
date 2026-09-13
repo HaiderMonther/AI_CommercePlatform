@@ -62,3 +62,28 @@ export const ERROR_CODE_LABELS: Record<string, string> = {
   RATE_LIMITED: 'عدد المحاولات كبير، الرجاء المحاولة بعد قليل',
   NETWORK_ERROR: 'تعذر الاتصال بالخادم، تحقق من الإنترنت',
 };
+
+// --- Catalog (Phase 2) -------------------------------------------------------
+
+export const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  STOCK_IN: 'إدخال مخزون',
+  STOCK_OUT: 'إخراج مخزون',
+  ADJUSTMENT: 'جرد وتعديل',
+  SALE: 'بيع',
+  RETURN: 'إرجاع',
+  RESERVATION: 'حجز',
+  RELEASE: 'فك حجز',
+};
+
+export const MOVEMENT_TYPE_COLORS: Record<string, string> = {
+  STOCK_IN: 'success',
+  RETURN: 'success',
+  STOCK_OUT: 'error',
+  SALE: 'error',
+  ADJUSTMENT: 'info',
+  RESERVATION: 'warning',
+  RELEASE: 'warning',
+};
+
+/** Movement types an operator may trigger from the dashboard. */
+export const MANUAL_MOVEMENT_TYPES = ['STOCK_IN', 'STOCK_OUT', 'ADJUSTMENT', 'RETURN'] as const;
