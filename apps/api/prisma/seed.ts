@@ -9,12 +9,18 @@
  */
 import { PrismaClient, Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { config as loadEnv } from 'dotenv';
+import { expand } from 'dotenv-expand';
 import {
   ALL_PERMISSIONS,
   PERMISSION_DESCRIPTIONS,
   permissionGroupOf,
 } from '../src/common/constants/permissions.constant';
 import { SUPER_ADMIN_ROLE, SYSTEM_ROLE, SYSTEM_ROLES } from '../src/common/constants/roles.constant';
+
+// Same .env as the API (which composes DATABASE_URL from DB_*); variables already set in
+// the environment, as in CI and Docker, take precedence.
+expand(loadEnv());
 
 const prisma = new PrismaClient();
 
@@ -405,6 +411,232 @@ async function seedCatalog(companyId: string, userId: string | null): Promise<vo
   console.log(`✓ catalog: ${categories} categories, ${products} products, ${variants} variants`);
 }
 
+type Channel = 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK';
+
+interface DemoCustomer {
+  name: string;
+  phone?: string;
+  city?: string;
+  tags?: string[];
+  notes?: string;
+  status?: 'ACTIVE' | 'BLOCKED';
+  identities: { channel: Channel; platformUserId: string; displayName?: string }[];
+}
+
+interface DemoConversation {
+  customer: number;
+  channel: Channel;
+  status: 'OPEN' | 'PENDING' | 'RESOLVED' | 'CLOSED';
+  mode: 'AI' | 'HUMAN';
+  assignToAgent?: boolean;
+  handoverReason?: string;
+  /** [sender, text, minutes ago] */
+  messages: ['CUSTOMER' | 'AI' | 'AGENT', string, number][];
+}
+
+const DEMO_CUSTOMERS: DemoCustomer[] = [
+  {
+    name: 'علي حسين',
+    phone: '+9647701234567',
+    city: 'بغداد',
+    tags: ['زبون دائم'],
+    identities: [{ channel: 'WHATSAPP', platformUserId: '9647701234567', displayName: 'Ali' }],
+  },
+  {
+    name: 'زينب كريم',
+    phone: '+9647812345678',
+    city: 'البصرة',
+    identities: [
+      { channel: 'WHATSAPP', platformUserId: '9647812345678' },
+      { channel: 'INSTAGRAM', platformUserId: 'ig-17841400000001', displayName: 'zainab.k' },
+    ],
+  },
+  {
+    name: 'مصطفى جاسم',
+    city: 'الموصل',
+    identities: [
+      { channel: 'INSTAGRAM', platformUserId: 'ig-17841400000002', displayName: 'mustafa.j' },
+    ],
+  },
+  {
+    name: 'نور الهدى',
+    phone: '+9647509876543',
+    city: 'أربيل',
+    identities: [{ channel: 'FACEBOOK', platformUserId: 'fb-6100000000001', displayName: 'Noor Alhuda' }],
+  },
+  {
+    name: 'سجى محمد',
+    phone: '+9647823334455',
+    city: 'بغداد',
+    identities: [{ channel: 'WHATSAPP', platformUserId: '9647823334455' }],
+  },
+  {
+    name: 'ياسر فاضل',
+    phone: '+9647734445566',
+    city: 'كربلاء',
+    tags: ['جملة'],
+    notes: 'يطلب بالجملة للمحل، يفضّل الاتصال مساءً.',
+    identities: [],
+  },
+  {
+    name: 'حسن عباس',
+    phone: '+9647712223344',
+    city: 'النجف',
+    status: 'BLOCKED',
+    notes: 'رسائل مزعجة متكررة.',
+    identities: [{ channel: 'WHATSAPP', platformUserId: '9647712223344' }],
+  },
+];
+
+const DEMO_CONVERSATIONS: DemoConversation[] = [
+  {
+    customer: 0,
+    channel: 'WHATSAPP',
+    status: 'OPEN',
+    mode: 'AI',
+    messages: [
+      ['CUSTOMER', 'السلام عليكم، القميص القطني الأبيض متوفر مقاس L؟', 45],
+      ['AI', 'وعليكم السلام هلا بيك 🌷 نعم متوفر مقاس L بسعر 25,000 د.ع. تحب أحجزه إلك؟', 44],
+      ['CUSTOMER', 'شكد التوصيل لبغداد؟', 3],
+    ],
+  },
+  {
+    customer: 1,
+    channel: 'INSTAGRAM',
+    status: 'OPEN',
+    mode: 'HUMAN',
+    assignToAgent: true,
+    handoverReason: 'الزبون طلب التحدث مع موظف',
+    messages: [
+      ['CUSTOMER', 'مرحبا، اريد استبدل فستان اشتريته الأسبوع الماضي', 120],
+      ['AI', 'أهلاً زينب، الاستبدال متاح خلال 3 أيام من الاستلام مع الفاتورة. شنو سبب الاستبدال؟', 119],
+      ['CUSTOMER', 'اريد احجي ويه موظف رجاءً', 20],
+      ['CUSTOMER', 'موجودين؟', 18],
+    ],
+  },
+  {
+    customer: 3,
+    channel: 'FACEBOOK',
+    status: 'PENDING',
+    mode: 'HUMAN',
+    assignToAgent: true,
+    handoverReason: 'رد موظف على المحادثة',
+    messages: [
+      ['CUSTOMER', 'هل يوجد توصيل إلى أربيل؟', 600],
+      ['AGENT', 'نعم، التوصيل لأربيل خلال 2-4 أيام بكلفة 5,000 د.ع', 590],
+      ['CUSTOMER', 'تمام، راح أرسل العنوان بعدين', 585],
+    ],
+  },
+  {
+    customer: 4,
+    channel: 'WHATSAPP',
+    status: 'RESOLVED',
+    mode: 'AI',
+    messages: [
+      ['CUSTOMER', 'وصل الطلب، شكراً جزيلاً', 1500],
+      ['AI', 'العفو، نتمنى يعجبك! ننتظر طلبك الجاي 🌸', 1499],
+    ],
+  },
+  {
+    customer: 2,
+    channel: 'INSTAGRAM',
+    status: 'OPEN',
+    mode: 'AI',
+    messages: [['CUSTOMER', 'عندكم أحذية رياضية؟', 8]],
+  },
+  {
+    customer: 6,
+    channel: 'WHATSAPP',
+    status: 'CLOSED',
+    mode: 'HUMAN',
+    handoverReason: 'تحويل يدوي من لوحة التحكم',
+    messages: [['CUSTOMER', 'رسالة ترويجية مكررة', 3000]],
+  },
+];
+
+async function seedCrm(companyId: string, agentId: string | null): Promise<void> {
+  const existing = await prisma.customer.count({ where: { companyId } });
+  if (existing > 0) {
+    console.log('• customers already present');
+    return;
+  }
+
+  const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
+  const customerIds: string[] = [];
+
+  for (const [index, definition] of DEMO_CUSTOMERS.entries()) {
+    const customer = await prisma.customer.create({
+      data: {
+        companyId,
+        name: definition.name,
+        phone: definition.phone ?? null,
+        city: definition.city ?? null,
+        tags: definition.tags ?? [],
+        notes: definition.notes ?? null,
+        status: definition.status ?? 'ACTIVE',
+        createdAt: minutesAgo(5000 - index * 100),
+        identities: {
+          create: definition.identities.map((identity) => ({ companyId, ...identity })),
+        },
+      },
+    });
+    customerIds.push(customer.id);
+  }
+
+  for (const definition of DEMO_CONVERSATIONS) {
+    const customerId = customerIds[definition.customer];
+    const first = definition.messages[0];
+    const last = definition.messages[definition.messages.length - 1];
+    const lastInbound = [...definition.messages].reverse().find(([sender]) => sender === 'CUSTOMER');
+
+    // Unread = the customer's trailing messages that nobody has answered yet.
+    const lastReplyIndex = definition.messages.findLastIndex(([sender]) => sender !== 'CUSTOMER');
+    const unreadCount =
+      definition.status === 'OPEN' ? definition.messages.length - 1 - lastReplyIndex : 0;
+
+    const done = definition.status === 'RESOLVED' || definition.status === 'CLOSED';
+
+    await prisma.conversation.create({
+      data: {
+        companyId,
+        customerId,
+        channel: definition.channel,
+        status: definition.status,
+        mode: definition.mode,
+        assignedUserId: definition.assignToAgent ? agentId : null,
+        handoverReason: definition.mode === 'HUMAN' ? (definition.handoverReason ?? null) : null,
+        handoverAt: definition.mode === 'HUMAN' ? minutesAgo(first[2] - 1) : null,
+        unreadCount,
+        lastMessageAt: minutesAgo(last[2]),
+        closedAt: done ? minutesAgo(last[2] - 1) : null,
+        createdAt: minutesAgo(first[2]),
+        messages: {
+          create: definition.messages.map(([sender, content, ago]) => ({
+            companyId,
+            senderType: sender,
+            senderUserId: sender === 'AGENT' ? agentId : null,
+            direction: sender === 'CUSTOMER' ? 'INBOUND' : 'OUTBOUND',
+            content,
+            deliveryStatus: sender === 'CUSTOMER' ? 'DELIVERED' : 'READ',
+            createdAt: minutesAgo(ago),
+          })),
+        },
+      },
+    });
+
+    if (lastInbound) {
+      await prisma.customer.update({
+        where: { id: customerId },
+        data: { lastContactAt: minutesAgo(lastInbound[2]) },
+      });
+    }
+  }
+
+  console.log(
+    `✓ crm: ${DEMO_CUSTOMERS.length} customers, ${DEMO_CONVERSATIONS.length} conversations`,
+  );
+}
+
 async function main(): Promise<void> {
   const referenceOnly = process.argv.includes('--reference-only');
 
@@ -423,6 +655,12 @@ async function main(): Promise<void> {
         select: { id: true },
       });
       await seedCatalog(demo.id, owner?.id ?? null);
+
+      const agent = await prisma.user.findFirst({
+        where: { companyId: demo.id, email: DEMO.agent.email },
+        select: { id: true },
+      });
+      await seedCrm(demo.id, agent?.id ?? null);
     }
   }
 

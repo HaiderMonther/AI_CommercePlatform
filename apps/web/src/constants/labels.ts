@@ -50,6 +50,7 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   Order: 'الطلب',
   Channel: 'القناة',
   AiConfig: 'إعدادات الذكاء الاصطناعي',
+  Conversation: 'المحادثة',
 };
 
 /** Arabic messages for the API's stable error codes. */
@@ -61,6 +62,9 @@ export const ERROR_CODE_LABELS: Record<string, string> = {
   PERMISSION_DENIED: 'ليس لديك صلاحية لتنفيذ هذه العملية',
   RATE_LIMITED: 'عدد المحاولات كبير، الرجاء المحاولة بعد قليل',
   NETWORK_ERROR: 'تعذر الاتصال بالخادم، تحقق من الإنترنت',
+  CUSTOMER_PHONE_TAKEN: 'رقم الهاتف مسجّل لزبون آخر',
+  CUSTOMER_BLOCKED: 'الزبون محظور',
+  ASSIGNEE_INVALID: 'لا يمكن إسناد المحادثة لهذا المستخدم',
 };
 
 // --- Catalog (Phase 2) -------------------------------------------------------
@@ -87,3 +91,77 @@ export const MOVEMENT_TYPE_COLORS: Record<string, string> = {
 
 /** Movement types an operator may trigger from the dashboard. */
 export const MANUAL_MOVEMENT_TYPES = ['STOCK_IN', 'STOCK_OUT', 'ADJUSTMENT', 'RETURN'] as const;
+
+// --- CRM & messaging (Phase 3) -----------------------------------------------
+
+export const CUSTOMER_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'فعّال',
+  BLOCKED: 'محظور',
+  ARCHIVED: 'مؤرشف',
+};
+
+export const CUSTOMER_STATUS_COLORS: Record<string, string> = {
+  ACTIVE: 'success',
+  BLOCKED: 'error',
+  ARCHIVED: 'default',
+};
+
+export const CHANNEL_LABELS: Record<string, string> = {
+  WHATSAPP: 'واتساب',
+  INSTAGRAM: 'إنستغرام',
+  FACEBOOK: 'ماسنجر',
+};
+
+export const CHANNEL_ICONS: Record<string, string> = {
+  WHATSAPP: 'mdi-whatsapp',
+  INSTAGRAM: 'mdi-instagram',
+  FACEBOOK: 'mdi-facebook-messenger',
+};
+
+export const CHANNEL_COLORS: Record<string, string> = {
+  WHATSAPP: '#25D366',
+  INSTAGRAM: '#E1306C',
+  FACEBOOK: '#0084FF',
+};
+
+export const CONVERSATION_STATUS_LABELS: Record<string, string> = {
+  OPEN: 'مفتوحة',
+  PENDING: 'بانتظار الزبون',
+  RESOLVED: 'تمت المعالجة',
+  CLOSED: 'مغلقة',
+};
+
+export const CONVERSATION_STATUS_COLORS: Record<string, string> = {
+  OPEN: 'primary',
+  PENDING: 'warning',
+  RESOLVED: 'success',
+  CLOSED: 'default',
+};
+
+export const CONVERSATION_MODE_LABELS: Record<string, string> = {
+  AI: 'المساعد الذكي',
+  HUMAN: 'موظف',
+};
+
+export const DELIVERY_STATUS_ICONS: Record<string, string> = {
+  PENDING: 'mdi-clock-outline',
+  SENT: 'mdi-check',
+  DELIVERED: 'mdi-check-all',
+  READ: 'mdi-check-all',
+  FAILED: 'mdi-alert-circle-outline',
+};
+
+export const DELIVERY_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'بانتظار الإرسال',
+  SENT: 'أُرسلت',
+  DELIVERED: 'وصلت',
+  READ: 'قُرئت',
+  FAILED: 'فشل الإرسال',
+};
+
+export const SENDER_LABELS: Record<string, string> = {
+  CUSTOMER: 'الزبون',
+  AI: 'المساعد الذكي',
+  AGENT: 'موظف',
+  SYSTEM: 'النظام',
+};

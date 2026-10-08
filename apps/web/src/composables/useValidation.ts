@@ -1,7 +1,8 @@
 type Rule = (value: unknown) => true | string;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_PATTERN = /^\+?[0-9\s-]{7,}$/;
+// Arabic-Indic digits are accepted too; the API normalizes them.
+const PHONE_PATTERN = /^\+?[0-9\u0660-\u0669\u06F0-\u06F9\s-]{7,}$/;
 const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 /**

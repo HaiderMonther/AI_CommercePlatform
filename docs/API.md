@@ -74,6 +74,11 @@
 | `SYSTEM_ROLE_IMMUTABLE` | 400 | الأدوار الافتراضية غير قابلة للتعديل |
 | `ROLE_IN_USE` | 409 | الدور مرتبط بمستخدمين |
 | `LAST_OWNER_PROTECTED` | 400 | يجب بقاء مالك فعّال واحد على الأقل |
+| `CUSTOMER_NOT_FOUND` | 404 | الزبون غير موجود |
+| `CUSTOMER_PHONE_TAKEN` | 409 | رقم الهاتف مسجّل لزبون آخر (`details.customerId`) |
+| `CUSTOMER_BLOCKED` | 400 | لا يمكن الرد على زبون محظور أو بدء محادثة معه |
+| `CONVERSATION_NOT_FOUND` | 404 | المحادثة غير موجودة |
+| `ASSIGNEE_INVALID` | 400 | الموظف غير فعّال، أو من شركة أخرى، أو لا يملك `conversations.reply` |
 | `CONFLICT` | 409 | تعارض في قيمة فريدة |
 | `RATE_LIMITED` | 429 | تجاوز حد الطلبات |
 | `INTERNAL_ERROR` | 500 | خطأ غير متوقع |
@@ -143,7 +148,7 @@
 
 ---
 
-## 4. النقاط المتاحة (المرحلة 1)
+## 4. النقاط المتاحة
 
 ### الشركة
 
@@ -272,6 +277,91 @@
 الحركات يساوي المخزون الحالي دائماً. المخزون لا يصبح سالباً: محاولة تجاوز المتوفر
 تُرجع `409 INSUFFICIENT_STOCK`.
 
+### الزبائن
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/customers` | `customers.read` |
+| `GET` | `/customers/:id` | `customers.read` |
+| `POST` | `/customers` | `customers.create` |
+| `PATCH` | `/customers/:id` | `customers.update` |
+| `DELETE` | `/customers/:id` | `customers.delete` |
+
+مرشّحات القائمة: `status`، `channel` (زبائن لديهم حساب على القناة)، `city`، `tag`،
+`search` (الاسم، البريد، الهاتف)، و`sortBy` من `createdAt|name|lastContactAt|totalSpent|totalOrders`.
+
+**الهاتف يُوحَّد إلى E.164** (`+9647701234567`) سواء كُتب `0770 123 4567` أو
+`9647701234567` أو بأرقام عربية `٠٧٧٠…`، وهو فريد داخل الشركة. لذلك البحث بـ`0770123`
+يجد الزبون المخزّن بالصيغة الدولية. الرقم المحلي بلا رمز دولة يُقبل بصيغة الموبايل
+العراقي فقط.
+
+`GET /customers/:id` يُرجع أيضاً `identities` (حساباته على كل قناة) و`recentConversations`.
+`status: BLOCKED` يمنع الرد وبدء محادثات جديدة. الحذف ناعم: تبقى الطلبات والمحادثات،
+يُحرَّر الرقم، وتُحذف هويات القنوات حتى لا تُنسب رسالته القادمة لسجل محذوف.
+
+### المحادثات
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/conversations` | `conversations.read` |
+| `GET` | `/conversations/stats` | `conversations.read` |
+| `GET` | `/conversations/:id` | `conversations.read` |
+| `POST` | `/conversations` | `conversations.reply` |
+| `PATCH` | `/conversations/:id/assign` | `conversations.assign` |
+| `PATCH` | `/conversations/:id/status` | `conversations.close` |
+| `PATCH` | `/conversations/:id/mode` | `conversations.reply` |
+| `POST` | `/conversations/:id/read` | `conversations.read` |
+
+مرشّحات القائمة: `active=true` (OPEN + PENDING)، `status`، `mode`، `channel`، `customerId`،
+`unread=true`، `assignee` (`me` · `unassigned` · معرف مستخدم)، و`search` باسم الزبون أو
+هاتفه. الترتيب دائماً بآخر رسالة، وكل عنصر يحمل `lastMessage`.
+
+**دورة الحياة**
+
+```
+OPEN ──▶ PENDING ──▶ RESOLVED ──▶ CLOSED
+  ▲         │            │
+  └─────────┴────────────┘  رسالة جديدة من الزبون تعيدها OPEN
+                            (أما CLOSED فنهائية: الرسالة التالية تفتح محادثة جديدة)
+```
+
+`PATCH /:id/assign` يقبل `{ "userId": "..." }` أو `{ "userId": null }` صراحةً لإلغاء الإسناد.
+`PATCH /:id/mode` بـ`{ "mode": "HUMAN", "reason": "..." }` يوقف الرد الآلي، و`AI` يعيده.
+`POST /conversations` (`customerId`، `channel`، `subject`) يفتح محادثة بوضع HUMAN مسندة
+لمنشئها، ويُرجع المحادثة النشطة الموجودة إن وُجدت. واتساب يتطلب رقم هاتف، وإنستغرام
+وماسنجر يتطلبان أن يكون الزبون راسل المتجر منهما من قبل.
+
+### الرسائل
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/conversations/:id/messages` | `conversations.read` |
+| `POST` | `/conversations/:id/messages` | `conversations.reply` |
+
+القراءة بمؤشر لا بصفحات، لأن المحادثة تنمو أثناء قراءتها:
+`?limit=50&before=<messageId>` يُرجع `{ items, hasMore, nextBefore }` مرتبة من الأقدم للأحدث.
+
+**رد الموظف** (`{ "content": "..." }`، حتى 4096 حرفاً) يُحفظ بحالة `PENDING`، وفي
+المعاملة نفسها: يحوّل المحادثة إلى HUMAN، يعيد فتحها إن كانت منتهية، يسندها للموظف إن لم
+تكن مسندة، ويصفّر غير المقروء. الإرسال الفعلي للقناة يأتي مع المرحلة 5.
+
+### الزمن الحقيقي (Socket.IO)
+
+```
+path:  /api/socket.io          auth: { token: "<accessToken>" }
+```
+
+| الحدث | الاتجاه | المحتوى |
+| --- | --- | --- |
+| `conversation:join` | عميل → خادم | `{ conversationId }` ← ack `{ ok, code? }` |
+| `conversation:leave` | عميل → خادم | `{ conversationId }` |
+| `conversation:updated` | خادم → عميل | صف صندوق المحادثات كاملاً، لكل من يملك `conversations.read` |
+| `message:created` | خادم → عميل | `{ conversationId, message }` لمن انضم لغرفة المحادثة |
+
+رفض الاتصال يصل في `connect_error` ورسالته رمز الخطأ: `TOKEN_EXPIRED` (جدّد الرمز وأعد
+الاتصال) أو `UNAUTHENTICATED` / `TOKEN_INVALID` (توقف). الخادم يغلق الاتصال عند انتهاء
+صلاحية الرمز، فيعيد العميل الاتصال برمز جديد وصلاحيات محدّثة.
+
 ### سجل العمليات
 
 | الطريقة | المسار | الصلاحية |
@@ -322,7 +412,6 @@
 
 | المرحلة | النقاط |
 | --- | --- |
-| 3 | `/customers` · `/conversations` · `/conversations/:id/messages` · `/conversations/:id/assign` |
 | 4 | `/orders` · `/orders/:id/status` · `/orders/:id/items` |
 | 5 | `/channels` · `/webhooks/whatsapp` · `/webhooks/instagram` · `/webhooks/facebook` |
 | 6 | `/ai/config` · `/ai/test` · `/conversations/:id/handover` |

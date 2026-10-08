@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useDisplay } from 'vuetify';
 import { useRouter } from 'vue-router';
 import { routes } from '@/router/routes';
+import { connectRealtime, disconnectRealtime } from '@/services/realtime';
 import { useAuthStore } from '@/stores/auth.store';
 import { useUiStore } from '@/stores/ui.store';
 import { initialsOf } from '@/utils/format';
@@ -56,13 +57,26 @@ const navSections = computed(() => {
   ].filter((section) => section.items.length > 0);
 });
 
-// Phases 2-7 add these screens; showing them disabled sets expectations without dead links.
+// Phases 4-7 add these screens; showing them disabled sets expectations without dead links.
 const upcoming = [
-  { title: 'المحادثات', icon: 'mdi-forum-outline' },
   { title: 'الطلبات', icon: 'mdi-cart-outline' },
-  { title: 'الزبائن', icon: 'mdi-account-heart-outline' },
   { title: 'التقارير', icon: 'mdi-chart-box-outline' },
 ];
+
+// One socket for the whole dashboard session. Platform admins have no company, so there
+// is no tenant stream for them to receive.
+onMounted(() => {
+  if (auth.user?.companyId) connectRealtime();
+});
+
+onBeforeUnmount(disconnectRealtime);
+
+watch(
+  () => auth.isAuthenticated,
+  (authenticated) => {
+    if (!authenticated) disconnectRealtime();
+  },
+);
 
 async function handleLogout(): Promise<void> {
   loggingOut.value = true;

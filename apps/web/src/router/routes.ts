@@ -37,6 +37,32 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: 'لوحة التحكم', icon: 'mdi-view-dashboard-outline' },
       },
       {
+        path: 'conversations/:id?',
+        name: 'conversations',
+        component: () => import('@/views/conversations/ConversationsView.vue'),
+        meta: {
+          title: 'المحادثات',
+          icon: 'mdi-forum-outline',
+          permissions: [PERMISSIONS.CONVERSATIONS_READ],
+        },
+      },
+      {
+        path: 'customers',
+        name: 'customers',
+        component: () => import('@/views/customers/CustomersView.vue'),
+        meta: {
+          title: 'الزبائن',
+          icon: 'mdi-account-heart-outline',
+          permissions: [PERMISSIONS.CUSTOMERS_READ],
+        },
+      },
+      {
+        path: 'customers/:id',
+        name: 'customer-detail',
+        component: () => import('@/views/customers/CustomerDetailView.vue'),
+        meta: { title: 'ملف الزبون', permissions: [PERMISSIONS.CUSTOMERS_READ] },
+      },
+      {
         path: 'products',
         name: 'products',
         component: () => import('@/views/catalog/ProductsView.vue'),

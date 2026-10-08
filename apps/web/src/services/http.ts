@@ -40,6 +40,17 @@ http.interceptors.request.use((config) => {
  */
 let refreshPromise: Promise<string | null> | null = null;
 
+/** Shared with the realtime client, which also needs fresh tokens after expiry. */
+export function refreshAccessToken(): Promise<string | null> {
+  if (!authBridge) return Promise.resolve(null);
+
+  refreshPromise ??= authBridge.refreshSession().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
+}
+
 http.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiEnvelope<null>>) => {
@@ -53,11 +64,7 @@ http.interceptors.response.use(
     if (isExpiredSession && canRetry && authBridge) {
       original._retried = true;
 
-      refreshPromise ??= authBridge.refreshSession().finally(() => {
-        refreshPromise = null;
-      });
-
-      const token = await refreshPromise;
+      const token = await refreshAccessToken();
 
       if (token) {
         original.headers.Authorization = `Bearer ${token}`;

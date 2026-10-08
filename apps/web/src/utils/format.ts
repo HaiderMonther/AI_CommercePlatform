@@ -56,6 +56,15 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   }).format(date);
 }
 
+/** Clock time only (14:05), for chat bubbles grouped under a date separator. */
+export function formatTime(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat(AR_LOCALE, { hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
 /** Short relative time ("قبل 5 دقائق") for activity feeds. */
 export function formatRelative(value: string | Date | null | undefined): string {
   if (!value) return '—';

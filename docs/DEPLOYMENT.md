@@ -71,7 +71,7 @@ curl -fsS http://localhost:3000/health
 | `NODE_ENV` | `development` | بيئة التشغيل |
 | `PORT` | `3000` | منفذ الـAPI |
 | `API_PREFIX` | `api/v1` | بادئة المسارات |
-| `REDIS_URL` | `redis://localhost:6379` | الكاش والطوابير |
+| `REDIS_URL` | `redis://localhost:6379` | الكاش والطوابير وبث الزمن الحقيقي بين نسخ الـAPI |
 | `JWT_EXPIRES_IN` | `15m` | عمر رمز الدخول |
 | `JWT_REFRESH_EXPIRES_IN` | `30d` | عمر رمز التحديث |
 | `CORS_ORIGINS` | `FRONTEND_URL` | مصادر مسموحة مفصولة بفواصل |
@@ -220,7 +220,8 @@ Load Balancer ────┼── api (نسخة 2) ──┼──▶ PostgreS
 لا يتطلب sticky sessions. نقاط الانتباه عند التوسّع:
 
 1. **المايكريشن** عبر خدمة `migrate` وحدها، لا من نسخ الـAPI.
-2. **WebSocket** يحتاج Redis adapter لبث الأحداث بين النسخ (المرحلة 3).
+2. **WebSocket** يبث بين النسخ عبر Redis adapter تلقائياً. إن تعذّر Redis عند الإقلاع
+   تعمل كل نسخة وحدها ويُسجَّل تحذير — مقبول لنسخة واحدة، لا لعدة نسخ.
 3. **الطوابير** تتوسع بزيادة عمّال BullMQ مستقلين عن نسخ الـAPI (المرحلة 5).
 4. **القراءة** يمكن توجيه التقارير الثقيلة إلى read replica (المرحلة 7).
 

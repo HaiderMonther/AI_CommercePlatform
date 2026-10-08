@@ -1,0 +1,4 @@
+# Keep LF everywhere: Docker images, CI and shell scripts run on Linux.
+* text=auto eol=lf
+*.png binary
+*.ico binary

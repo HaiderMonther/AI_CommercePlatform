@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { RealtimeIoAdapter } from '@modules/realtime/realtime-io.adapter';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
@@ -23,6 +24,10 @@ async function bootstrap(): Promise<void> {
     exposedHeaders: ['X-Correlation-Id'],
   });
 
+  const realtimeAdapter = new RealtimeIoAdapter(app, corsOrigins);
+  await realtimeAdapter.connectToRedis(config.getOrThrow<string>('redis.url'));
+  app.useWebSocketAdapter(realtimeAdapter);
+
   app.setGlobalPrefix(apiPrefix, { exclude: ['health', 'health/live'] });
   app.enableShutdownHooks();
 
@@ -39,6 +44,12 @@ async function bootstrap(): Promise<void> {
       .addTag('Users', 'المستخدمون')
       .addTag('Roles', 'الأدوار')
       .addTag('Permissions', 'الصلاحيات')
+      .addTag('Products', 'المنتجات والمتغيرات')
+      .addTag('Categories', 'التصنيفات')
+      .addTag('Inventory', 'حركة المخزون')
+      .addTag('Customers', 'الزبائن')
+      .addTag('Conversations', 'المحادثات')
+      .addTag('Messages', 'رسائل المحادثات')
       .addTag('Audit', 'سجل العمليات')
       .addTag('Health', 'فحص الخدمة')
       .build();

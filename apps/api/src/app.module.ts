@@ -18,10 +18,14 @@ import { AuditModule } from '@modules/audit/audit.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { CategoriesModule } from '@modules/categories/categories.module';
 import { CompaniesModule } from '@modules/companies/companies.module';
+import { ConversationsModule } from '@modules/conversations/conversations.module';
+import { CustomersModule } from '@modules/customers/customers.module';
 import { HealthModule } from '@modules/health/health.module';
 import { InventoryModule } from '@modules/inventory/inventory.module';
+import { MessagesModule } from '@modules/messages/messages.module';
 import { PermissionsModule } from '@modules/permissions/permissions.module';
 import { ProductsModule } from '@modules/products/products.module';
+import { RealtimeModule } from '@modules/realtime/realtime.module';
 import { RolesModule } from '@modules/roles/roles.module';
 import { UsersModule } from '@modules/users/users.module';
 
@@ -32,6 +36,8 @@ import { UsersModule } from '@modules/users/users.module';
       load: [configuration],
       validate: validateEnv,
       cache: true,
+      // Lets .env compose DATABASE_URL from DB_HOST, DB_USERNAME… (Prisma expands it too).
+      expandVariables: true,
     }),
     // Request context: every request gets a correlation id that flows into logs,
     // audit entries and the tenant-scoped Prisma client.
@@ -77,6 +83,10 @@ import { UsersModule } from '@modules/users/users.module';
     CategoriesModule,
     ProductsModule,
     InventoryModule,
+    RealtimeModule,
+    CustomersModule,
+    ConversationsModule,
+    MessagesModule,
   ],
   providers: [
     {

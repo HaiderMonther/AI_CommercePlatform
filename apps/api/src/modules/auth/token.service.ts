@@ -126,6 +126,33 @@ export class TokenService {
     });
   }
 
+  /**
+   * Verifies an access token outside the HTTP pipeline (the realtime gateway). HTTP
+   * requests go through the passport strategy instead; both apply the same secret,
+   * issuer and token-type checks.
+   */
+  async verifyAccessToken(token: string): Promise<AccessTokenPayload> {
+    let payload: AccessTokenPayload;
+
+    try {
+      payload = await this.jwt.verifyAsync<AccessTokenPayload>(token, {
+        secret: this.config.getOrThrow<string>('jwt.accessSecret'),
+        issuer: this.config.getOrThrow<string>('jwt.issuer'),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TokenExpiredError') {
+        throw new UnauthorizedAppException('انتهت صلاحية الجلسة', ERROR_CODE.TOKEN_EXPIRED);
+      }
+      throw new UnauthorizedAppException('رمز الدخول غير صالح', ERROR_CODE.TOKEN_INVALID);
+    }
+
+    if (payload.typ !== 'access') {
+      throw new UnauthorizedAppException('رمز الدخول غير صالح', ERROR_CODE.TOKEN_INVALID);
+    }
+
+    return payload;
+  }
+
   private async signAccessToken(user: AuthenticatedUser): Promise<string> {
     const payload: AccessTokenPayload = {
       sub: user.id,

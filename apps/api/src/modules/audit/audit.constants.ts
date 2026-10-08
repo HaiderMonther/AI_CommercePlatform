@@ -25,6 +25,7 @@ export const AUDIT_ENTITY = {
   CATEGORY: 'Category',
   INVENTORY: 'Inventory',
   CUSTOMER: 'Customer',
+  CONVERSATION: 'Conversation',
   ORDER: 'Order',
   CHANNEL: 'Channel',
   AI_CONFIG: 'AiConfig',

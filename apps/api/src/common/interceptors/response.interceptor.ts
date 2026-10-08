@@ -23,6 +23,11 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, ApiEnvelope<T>
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler<T>): Observable<ApiEnvelope<T>> {
+    // Realtime acknowledgements carry their own small `{ ok, code }` shape.
+    if (context.getType() !== 'http') {
+      return next.handle() as unknown as Observable<ApiEnvelope<T>>;
+    }
+
     const message =
       this.reflector.getAllAndOverride<string>(RESPONSE_MESSAGE_KEY, [
         context.getHandler(),
