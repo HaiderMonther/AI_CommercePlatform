@@ -7,6 +7,7 @@ import StatCard from '@/components/data/StatCard.vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import CustomerFormDialog from './components/CustomerFormDialog.vue';
 import StartConversationDialog from '@/views/conversations/components/StartConversationDialog.vue';
+import OrderFormDialog from '@/views/orders/components/OrderFormDialog.vue';
 import { useAsyncData } from '@/composables/useAsyncData';
 import {
   CHANNEL_COLORS,
@@ -17,6 +18,10 @@ import {
   CONVERSATION_STATUS_LABELS,
   CUSTOMER_STATUS_COLORS,
   CUSTOMER_STATUS_LABELS,
+  ORDER_STATUS_COLORS,
+  ORDER_STATUS_LABELS,
+  PAYMENT_STATUS_COLORS,
+  PAYMENT_STATUS_LABELS,
 } from '@/constants/labels';
 import { PERMISSIONS } from '@/constants/permissions';
 import { customersService } from '@/services/crm.service';
@@ -39,10 +44,13 @@ watch(customerId, execute, { immediate: true });
 
 const editOpen = ref(false);
 const startOpen = ref(false);
+const orderOpen = ref(false);
 
 const canUpdate = computed(() => auth.can(PERMISSIONS.CUSTOMERS_UPDATE));
 const canReply = computed(() => auth.can(PERMISSIONS.CONVERSATIONS_REPLY));
 const canReadConversations = computed(() => auth.can(PERMISSIONS.CONVERSATIONS_READ));
+const canReadOrders = computed(() => auth.can(PERMISSIONS.ORDERS_READ));
+const canCreateOrder = computed(() => auth.can(PERMISSIONS.ORDERS_CREATE));
 
 const contactRows = computed(() => {
   const value = customer.value;
@@ -60,6 +68,10 @@ const contactRows = computed(() => {
 
 function openConversation(id: string): void {
   router.push({ name: 'conversations', params: { id } });
+}
+
+function openOrder(id: string): void {
+  router.push({ name: 'order-detail', params: { id } });
 }
 </script>
 
@@ -99,11 +111,20 @@ function openConversation(id: string): void {
           </v-btn>
           <v-btn
             v-if="canReply && customer.status === 'ACTIVE'"
-            color="primary"
+            :color="canCreateOrder ? undefined : 'primary'"
+            :variant="canCreateOrder ? 'tonal' : 'flat'"
             prepend-icon="mdi-message-plus-outline"
             @click="startOpen = true"
           >
             محادثة جديدة
+          </v-btn>
+          <v-btn
+            v-if="canCreateOrder && customer.status === 'ACTIVE'"
+            color="primary"
+            prepend-icon="mdi-cart-plus"
+            @click="orderOpen = true"
+          >
+            طلب جديد
           </v-btn>
         </template>
       </PageHeader>
@@ -191,6 +212,45 @@ function openConversation(id: string): void {
         </v-col>
 
         <v-col cols="12" md="7">
+          <v-card v-if="canReadOrders" class="mb-4">
+            <v-card-title class="text-subtitle-1 font-weight-bold">آخر الطلبات</v-card-title>
+
+            <v-list v-if="customer.recentOrders.length" lines="two">
+              <v-list-item
+                v-for="order in customer.recentOrders"
+                :key="order.id"
+                @click="openOrder(order.id)"
+              >
+                <v-list-item-title class="numeric">
+                  #{{ order.orderNumber }}
+                  <span class="text-medium-emphasis text-caption">
+                    · {{ formatCurrency(order.total, order.currency) }}
+                  </span>
+                </v-list-item-title>
+                <v-list-item-subtitle>{{ formatDate(order.createdAt) }}</v-list-item-subtitle>
+
+                <template #append>
+                  <div class="d-flex align-center ga-2">
+                    <v-chip
+                      :color="PAYMENT_STATUS_COLORS[order.paymentStatus]"
+                      size="small"
+                      variant="tonal"
+                    >
+                      {{ PAYMENT_STATUS_LABELS[order.paymentStatus] }}
+                    </v-chip>
+                    <v-chip :color="ORDER_STATUS_COLORS[order.status]" size="small" variant="flat">
+                      {{ ORDER_STATUS_LABELS[order.status] }}
+                    </v-chip>
+                  </div>
+                </template>
+              </v-list-item>
+            </v-list>
+
+            <v-card-text v-else class="text-body-2 text-medium-emphasis">
+              لم يطلب هذا الزبون شيئاً بعد.
+            </v-card-text>
+          </v-card>
+
           <v-card>
             <v-card-title class="text-subtitle-1 font-weight-bold">آخر المحادثات</v-card-title>
 
@@ -246,6 +306,7 @@ function openConversation(id: string): void {
 
       <CustomerFormDialog v-model="editOpen" :customer="customer" @saved="execute" />
       <StartConversationDialog v-model="startOpen" :customer="customer" />
+      <OrderFormDialog v-model="orderOpen" :customer="customer" />
     </template>
   </div>
 </template>

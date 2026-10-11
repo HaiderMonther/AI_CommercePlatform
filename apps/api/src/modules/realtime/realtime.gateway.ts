@@ -77,6 +77,9 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     if (this.can(principal, PERMISSIONS.CONVERSATIONS_READ)) {
       rooms.push(ROOM.companyConversations(companyId));
     }
+    if (this.can(principal, PERMISSIONS.ORDERS_READ)) {
+      rooms.push(ROOM.companyOrders(companyId));
+    }
     await socket.join(rooms);
 
     if (tokenExpiresAt) {

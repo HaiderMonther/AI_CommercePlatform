@@ -79,6 +79,12 @@
 | `CUSTOMER_BLOCKED` | 400 | لا يمكن الرد على زبون محظور أو بدء محادثة معه |
 | `CONVERSATION_NOT_FOUND` | 404 | المحادثة غير موجودة |
 | `ASSIGNEE_INVALID` | 400 | الموظف غير فعّال، أو من شركة أخرى، أو لا يملك `conversations.reply` |
+| `ORDER_NOT_FOUND` | 404 | الطلب غير موجود |
+| `INSUFFICIENT_STOCK` | 409 | الكمية غير متوفرة (`details.productId`، `details.variantId`) |
+| `PRODUCT_UNAVAILABLE` | 400 | المنتج أو المتغير موقوف عن البيع |
+| `ORDER_INVALID_TRANSITION` | 409 | انتقال غير مسموح في دورة حياة الطلب (`details.allowed`) |
+| `ORDER_NOT_EDITABLE` | 409 | الطلب في حالة لا تسمح بهذا التعديل |
+| `ORDER_CREATE_FAILED` | 409 | تعارض متزامن أثناء إنشاء الطلب، أعد المحاولة |
 | `CONFLICT` | 409 | تعارض في قيمة فريدة |
 | `RATE_LIMITED` | 429 | تجاوز حد الطلبات |
 | `INTERNAL_ERROR` | 500 | خطأ غير متوقع |
@@ -345,6 +351,92 @@ OPEN ──▶ PENDING ──▶ RESOLVED ──▶ CLOSED
 المعاملة نفسها: يحوّل المحادثة إلى HUMAN، يعيد فتحها إن كانت منتهية، يسندها للموظف إن لم
 تكن مسندة، ويصفّر غير المقروء. الإرسال الفعلي للقناة يأتي مع المرحلة 5.
 
+### الطلبات
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/orders` | `orders.read` |
+| `GET` | `/orders/stats` | `orders.read` |
+| `GET` | `/orders/:id` | `orders.read` |
+| `POST` | `/orders` | `orders.create` |
+| `PATCH` | `/orders/:id` | `orders.update` |
+| `PUT` | `/orders/:id/items` | `orders.update` |
+| `PATCH` | `/orders/:id/status` | `orders.update` |
+| `PATCH` | `/orders/:id/payment` | `orders.update` |
+| `DELETE` | `/orders/:id` | `orders.delete` |
+
+مرشّحات القائمة: `open=true` (لم يُسلَّم ولم يُلغَ)، `status`، `paymentStatus`، `deliveryStatus`،
+`source`، `customerId`، `conversationId`، `from`/`to`، و`search` برقم الطلب (`1001` أو `#1001`)
+أو اسم الزبون أو هاتفه. `sortBy` من `createdAt|orderNumber|total`.
+
+**إنشاء طلب**
+
+```json
+{
+  "customerId": "c...",
+  "conversationId": "c...",
+  "items": [
+    { "productId": "c...", "quantity": 2 },
+    { "productId": "c...", "variantId": "c...", "quantity": 1, "unitPrice": 20000, "discount": 1000 }
+  ],
+  "paymentMethod": "CASH_ON_DELIVERY",
+  "deliveryFee": 5000,
+  "discount": 0,
+  "deliveryCity": "بغداد",
+  "deliveryAddress": "المنصور",
+  "notes": "الاتصال قبل التوصيل"
+}
+```
+
+- الزبون إما `customerId` أو `customer: { name, phone, city?, address? }`. الثاني يُربط بزبون
+  موجود بنفس الهاتف أو يُنشئ زبوناً جديداً.
+- سعر الوحدة من الكتالوج إن لم يُرسل: سعر المتغير إن وُجد، وإلا سعر التخفيض، وإلا السعر الأساسي.
+- اسم المستلم وهاتفه ومدينته وعنوانه تُنسخ من الزبون إن لم تُرسل، وتبقى ثابتة على الطلب
+  حتى لو تغيّر ملف الزبون لاحقاً. كذلك اسم المنتج ورمزه وسعره على كل سطر.
+- يُحجز المخزون في المعاملة نفسها. نقص أي منتج يرفض الطلب كاملاً بـ`409 INSUFFICIENT_STOCK`
+  واسم المنتج، ولا يُحفظ شيء (ولا حتى الزبون الجديد).
+- رقم الطلب تسلسلي لكل شركة يبدأ من `1001`.
+
+**دورة الحياة** (`PATCH /:id/status` بـ`{ status, note?, cancelReason? }`)
+
+```
+NEW ─▶ CONFIRMED ─▶ PREPARING ─▶ SHIPPED ─▶ DELIVERED
+ │         │            │           │
+ └─────────┴────────────┴───────────┴──▶ CANCELLED   (cancelReason مطلوب)
+```
+
+| الانتقال | المخزون | حقول تتحدث |
+| --- | --- | --- |
+| إنشاء الطلب | `RESERVATION` (حجز) | — |
+| ← `SHIPPED` أو `DELIVERED` | `RELEASE` + `SALE` (خصم فعلي) | `deliveryStatus`، `deliveredAt` |
+| ← `CANCELLED` قبل الشحن | `RELEASE` | `cancelledAt`، `cancelReason` |
+| ← `CANCELLED` بعد الشحن (رفض الاستلام) | `RETURN` | `deliveryStatus = RETURNED` |
+
+يمكن القفز للأمام (تسليم مباشر من `NEW`) ولا يمكن الرجوع. `DELIVERED` و`CANCELLED` نهائيتان.
+الانتقال غير المسموح يُرجع `409 ORDER_INVALID_TRANSITION` مع `details.allowed`. تفاصيل الطلب
+تحمل `allowedTransitions` و`itemsEditable` و`pricingEditable` لترسم الواجهة الأزرار الصحيحة.
+
+**التعديل**
+
+| ما يتغير | متى |
+| --- | --- |
+| المنتجات (`PUT /:id/items` بقائمة كاملة) | `NEW` و`CONFIRMED` فقط؛ يُحجز أو يُفك حجز الفرق فقط |
+| الخصم وأجور التوصيل | قبل الشحن |
+| المستلم والعنوان و`deliveryStatus` اليدوي (`PENDING`·`ASSIGNED`·`IN_TRANSIT`·`FAILED`) | ما دام الطلب مفتوحاً |
+| الملاحظات | دائماً |
+
+غير ذلك يُرجع `409 ORDER_NOT_EDITABLE`.
+
+**الدفع** — `PATCH /:id/payment` بـ`{ paidAmount, paymentMethod? }`. `paidAmount` هو **إجمالي
+المستلم حتى الآن** لا دفعة إضافية، فتصحيح رقم خاطئ يكون بإدخال الصحيح. حالة الدفع تُحسب
+منه (`UNPAID` · `PARTIALLY_PAID` · `PAID`)، وإلغاء طلب مدفوع يجعلها `REFUNDED`.
+كل صف يحمل `balanceDue` (المتبقي).
+
+**أرقام الزبون** — `totalOrders` (غير الملغاة)، و`totalSpent` و`outstandingDebt` (من الطلبات
+المسلَّمة فقط)، و`lastOrderAt` تُعاد حسابها من الطلبات بعد كل تغيير، فلا تنحرف.
+
+**الحذف** للطلبات الملغاة فقط؛ الطلب الحي يُلغى ليُفك حجزه عبر دورة الحياة.
+
 ### الزمن الحقيقي (Socket.IO)
 
 ```
@@ -357,6 +449,7 @@ path:  /api/socket.io          auth: { token: "<accessToken>" }
 | `conversation:leave` | عميل → خادم | `{ conversationId }` |
 | `conversation:updated` | خادم → عميل | صف صندوق المحادثات كاملاً، لكل من يملك `conversations.read` |
 | `message:created` | خادم → عميل | `{ conversationId, message }` لمن انضم لغرفة المحادثة |
+| `order:updated` | خادم → عميل | صف قائمة الطلبات كاملاً، أو `{ id, deleted: true }`، لكل من يملك `orders.read` |
 
 رفض الاتصال يصل في `connect_error` ورسالته رمز الخطأ: `TOKEN_EXPIRED` (جدّد الرمز وأعد
 الاتصال) أو `UNAUTHENTICATED` / `TOKEN_INVALID` (توقف). الخادم يغلق الاتصال عند انتهاء
@@ -412,7 +505,6 @@ path:  /api/socket.io          auth: { token: "<accessToken>" }
 
 | المرحلة | النقاط |
 | --- | --- |
-| 4 | `/orders` · `/orders/:id/status` · `/orders/:id/items` |
 | 5 | `/channels` · `/webhooks/whatsapp` · `/webhooks/instagram` · `/webhooks/facebook` |
 | 6 | `/ai/config` · `/ai/test` · `/conversations/:id/handover` |
 | 7 | `/dashboard/summary` · `/reports/*` · `/notifications` |

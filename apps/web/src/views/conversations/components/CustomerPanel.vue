@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import ChannelBadges from '@/components/data/ChannelBadges.vue';
+import OrderFormDialog from '@/views/orders/components/OrderFormDialog.vue';
 import { CUSTOMER_STATUS_COLORS, CUSTOMER_STATUS_LABELS } from '@/constants/labels';
 import { PERMISSIONS } from '@/constants/permissions';
 import { useAuthStore } from '@/stores/auth.store';
 import type { ChannelType, ConversationDetail } from '@/types/crm';
 import { formatCurrency, formatDate, formatNumber, initialsOf } from '@/utils/format';
 
-const props = defineProps<{ customer: ConversationDetail['customer'] }>();
+const props = defineProps<{
+  customer: ConversationDetail['customer'];
+  /** Links an order placed from here to the conversation it came from. */
+  conversationId?: string;
+}>();
 
 const auth = useAuthStore();
+const orderOpen = ref(false);
 
 const channels = computed(
   () => [...new Set(props.customer.identities.map((identity) => identity.channel))] as ChannelType[],
@@ -97,15 +103,28 @@ const rows = computed(() =>
     </v-alert>
 
     <v-btn
+      v-if="auth.can(PERMISSIONS.ORDERS_CREATE) && customer.status === 'ACTIVE'"
+      block
+      color="primary"
+      class="mt-4"
+      prepend-icon="mdi-cart-plus"
+      @click="orderOpen = true"
+    >
+      إنشاء طلب
+    </v-btn>
+
+    <v-btn
       v-if="auth.can(PERMISSIONS.CUSTOMERS_READ)"
       block
       variant="tonal"
-      class="mt-4"
+      class="mt-2"
       prepend-icon="mdi-account-details-outline"
       :to="{ name: 'customer-detail', params: { id: customer.id } }"
     >
       الملف الكامل
     </v-btn>
+
+    <OrderFormDialog v-model="orderOpen" :customer="customer" :conversation-id="conversationId" />
   </div>
 </template>
 

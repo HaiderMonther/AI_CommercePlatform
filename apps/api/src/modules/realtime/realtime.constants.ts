@@ -10,6 +10,8 @@ export const REALTIME_EVENT = {
   CONVERSATION_UPDATED: 'conversation:updated',
   /** A message was added to a conversation the client has joined. */
   MESSAGE_CREATED: 'message:created',
+  /** Order list row changed: created, status, payment, lines or details. */
+  ORDER_UPDATED: 'order:updated',
 
   CONVERSATION_JOIN: 'conversation:join',
   CONVERSATION_LEAVE: 'conversation:leave',
@@ -24,6 +26,8 @@ export const ROOM = {
   company: (companyId: string) => `company:${companyId}`,
   /** Members hold `conversations.read`; inbox updates go here, not to the whole company. */
   companyConversations: (companyId: string) => `company:${companyId}:conversations`,
+  /** Members hold `orders.read`; order list updates go here. */
+  companyOrders: (companyId: string) => `company:${companyId}:orders`,
   conversation: (conversationId: string) => `conversation:${conversationId}`,
   user: (userId: string) => `user:${userId}`,
 } as const;

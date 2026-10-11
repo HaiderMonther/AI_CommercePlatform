@@ -9,6 +9,7 @@ const REALTIME_PATH = '/api/socket.io';
 export const REALTIME_EVENT = {
   CONVERSATION_UPDATED: 'conversation:updated',
   MESSAGE_CREATED: 'message:created',
+  ORDER_UPDATED: 'order:updated',
 } as const;
 
 /** Server refusals that a new token will not fix; the client stops retrying on these. */

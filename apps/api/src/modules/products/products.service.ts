@@ -279,6 +279,14 @@ export class ProductsService {
    */
   async remove(id: string): Promise<void> {
     const product = await this.findOne(id);
+
+    if (product.reservedStock > 0) {
+      throw new ConflictAppException(
+        'لا يمكن حذف منتج لديه كمية محجوزة ضمن طلبات غير مكتملة',
+        ERROR_CODE.CONFLICT,
+      );
+    }
+
     const deletedAt = new Date();
 
     await this.prisma.$transaction(async (tx) => {

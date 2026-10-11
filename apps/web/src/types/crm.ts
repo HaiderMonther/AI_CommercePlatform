@@ -1,4 +1,5 @@
 /** Contracts of the Phase 3 API: customers, conversations and messages. */
+import type { CustomerOrderSummary } from './orders';
 
 export type ChannelType = 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK';
 export type CustomerStatus = 'ACTIVE' | 'BLOCKED' | 'ARCHIVED';
@@ -53,6 +54,7 @@ export interface CustomerConversationSummary {
 
 export interface CustomerDetail extends Customer {
   recentConversations: CustomerConversationSummary[];
+  recentOrders: CustomerOrderSummary[];
 }
 
 export interface MessagePreview {

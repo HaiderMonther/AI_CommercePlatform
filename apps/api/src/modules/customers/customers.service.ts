@@ -124,6 +124,20 @@ export class CustomersService {
           orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
           take: 10,
         },
+        orders: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            paymentStatus: true,
+            total: true,
+            paidAmount: true,
+            currency: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
       },
     });
 
@@ -131,8 +145,16 @@ export class CustomersService {
       throw new NotFoundAppException('الزبون غير موجود', ERROR_CODE.CUSTOMER_NOT_FOUND);
     }
 
-    const { conversations, ...row } = customer;
-    return { ...this.toView(row), recentConversations: conversations };
+    const { conversations, orders, ...row } = customer;
+    return {
+      ...this.toView(row),
+      recentConversations: conversations,
+      recentOrders: orders.map((order) => ({
+        ...order,
+        total: Number(order.total),
+        paidAmount: Number(order.paidAmount),
+      })),
+    };
   }
 
   async create(dto: CreateCustomerDto) {

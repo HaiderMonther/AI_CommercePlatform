@@ -472,12 +472,12 @@ function bubbleColor(message: Message): string | undefined {
     </div>
 
     <aside v-if="lgAndUp && detail" class="thread-panel border-s">
-      <CustomerPanel :customer="detail.customer" />
+      <CustomerPanel :customer="detail.customer" :conversation-id="detail.id" />
     </aside>
 
     <v-dialog v-if="detail" v-model="panelOpen" max-width="420">
       <v-card>
-        <CustomerPanel :customer="detail.customer" />
+        <CustomerPanel :customer="detail.customer" :conversation-id="detail.id" />
       </v-card>
     </v-dialog>
   </div>

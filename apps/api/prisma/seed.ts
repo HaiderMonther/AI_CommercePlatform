@@ -637,6 +637,203 @@ async function seedCrm(companyId: string, agentId: string | null): Promise<void>
   );
 }
 
+type DemoOrderStatus = 'NEW' | 'CONFIRMED' | 'PREPARING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+
+interface DemoOrder {
+  /** Index into the demo customers that have a phone. */
+  customer: number;
+  /** [index into the simple in-stock products, quantity] */
+  items: [number, number][];
+  status: DemoOrderStatus;
+  hoursAgo: number;
+  paid?: boolean;
+  source?: 'AI' | 'DASHBOARD';
+  cancelReason?: string;
+}
+
+// Oldest first, so order numbers follow placement time.
+const DEMO_ORDERS: DemoOrder[] = [
+  { customer: 0, items: [[0, 2], [1, 1]], status: 'DELIVERED', hoursAgo: 290, paid: true },
+  { customer: 1, items: [[2, 1]], status: 'DELIVERED', hoursAgo: 220 },
+  { customer: 0, items: [[3, 1]], status: 'CANCELLED', hoursAgo: 120, cancelReason: 'الزبون ألغى قبل التجهيز' },
+  { customer: 2, items: [[4, 1], [5, 1]], status: 'SHIPPED', hoursAgo: 70 },
+  { customer: 1, items: [[6, 2]], status: 'PREPARING', hoursAgo: 40 },
+  { customer: 2, items: [[7, 1]], status: 'CONFIRMED', hoursAgo: 20, source: 'AI' },
+  { customer: 0, items: [[8, 1], [9, 1]], status: 'NEW', hoursAgo: 3, source: 'AI' },
+];
+
+const ORDER_PATH: DemoOrderStatus[] = ['NEW', 'CONFIRMED', 'PREPARING', 'SHIPPED', 'DELIVERED'];
+
+/**
+ * Demo orders across the lifecycle. Stock goes through the same ledger entries the
+ * OrdersService books (reserve, then release + sale once shipped), so the demo
+ * inventory stays reconstructable from its movements.
+ */
+async function seedOrders(companyId: string, userId: string | null): Promise<void> {
+  if ((await prisma.order.count({ where: { companyId } })) > 0) {
+    console.log('• orders already present');
+    return;
+  }
+
+  const [products, customers] = await Promise.all([
+    prisma.product.findMany({
+      where: { companyId, hasVariants: false, isActive: true, trackInventory: true, stock: { gte: 5 } },
+      orderBy: { sku: 'asc' },
+      take: 10,
+    }),
+    prisma.customer.findMany({
+      where: { companyId, phone: { not: null }, status: 'ACTIVE', deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    }),
+  ]);
+
+  if (products.length < 10 || customers.length < 3) {
+    console.log('• orders skipped: demo catalog or customers missing');
+    return;
+  }
+
+  const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+  const deliveryFee = new Prisma.Decimal(5000);
+
+  for (const [index, definition] of DEMO_ORDERS.entries()) {
+    const customer = customers[definition.customer];
+    const placedAt = hoursAgo(definition.hoursAgo);
+    const at = (step: number) => new Date(placedAt.getTime() + step * 3_600_000);
+
+    const lines = definition.items.map(([productIndex, quantity]) => {
+      const product = products[productIndex];
+      const unitPrice = product.salePrice ?? product.price;
+      return { product, quantity, unitPrice, total: unitPrice.mul(quantity) };
+    });
+    const subtotal = lines.reduce((sum, line) => sum.add(line.total), new Prisma.Decimal(0));
+    const total = subtotal.add(deliveryFee);
+
+    const cancelled = definition.status === 'CANCELLED';
+    const path: DemoOrderStatus[] = cancelled
+      ? ['NEW', 'CANCELLED']
+      : ORDER_PATH.slice(0, ORDER_PATH.indexOf(definition.status) + 1);
+    const sold = definition.status === 'SHIPPED' || definition.status === 'DELIVERED';
+    const last = path.length - 1;
+    const byAi = definition.source === 'AI';
+
+    await prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          companyId,
+          orderNumber: 1001 + index,
+          customerId: customer.id,
+          source: definition.source ?? 'DASHBOARD',
+          status: definition.status,
+          paymentStatus: definition.paid ? 'PAID' : 'UNPAID',
+          deliveryStatus:
+            definition.status === 'DELIVERED'
+              ? 'DELIVERED'
+              : definition.status === 'SHIPPED'
+                ? 'IN_TRANSIT'
+                : 'PENDING',
+          subtotal,
+          deliveryFee,
+          total,
+          paidAmount: definition.paid ? total : new Prisma.Decimal(0),
+          customerName: customer.name,
+          customerPhone: customer.phone as string,
+          deliveryCity: customer.city,
+          deliveryAddress: customer.city ? `${customer.city} - قرب السوق الرئيسي` : null,
+          createdByUserId: byAi ? null : userId,
+          createdAt: placedAt,
+          confirmedAt: path.includes('CONFIRMED') ? at(1) : null,
+          deliveredAt: definition.status === 'DELIVERED' ? at(last) : null,
+          cancelledAt: cancelled ? at(1) : null,
+          cancelReason: definition.cancelReason ?? null,
+          items: {
+            create: lines.map((line) => ({
+              companyId,
+              productId: line.product.id,
+              productName: line.product.name,
+              sku: line.product.sku,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              total: line.total,
+            })),
+          },
+          statusHistory: {
+            create: path.map((status, step) => ({
+              companyId,
+              fromStatus: step === 0 ? null : path[step - 1],
+              toStatus: status,
+              note: status === 'CANCELLED' ? (definition.cancelReason ?? null) : null,
+              userId: byAi && step === 0 ? null : userId,
+              createdAt: at(step),
+            })),
+          },
+        },
+      });
+
+      const book = async (
+        productId: string,
+        type: 'RESERVATION' | 'RELEASE' | 'SALE',
+        quantity: number,
+      ) => {
+        const current = await tx.product.findUniqueOrThrow({ where: { id: productId } });
+        const stockAfter = type === 'SALE' ? current.stock - quantity : current.stock;
+        const reservedDelta = type === 'RESERVATION' ? quantity : type === 'RELEASE' ? -quantity : 0;
+
+        await tx.product.update({
+          where: { id: productId },
+          data: { stock: stockAfter, reservedStock: current.reservedStock + reservedDelta },
+        });
+        await tx.inventoryMovement.create({
+          data: {
+            companyId,
+            productId,
+            type,
+            quantity: type === 'SALE' ? -quantity : reservedDelta,
+            quantityBefore: current.stock,
+            quantityAfter: stockAfter,
+            reason: `طلب #${order.orderNumber}`,
+            referenceType: 'Order',
+            referenceId: order.id,
+            userId,
+            createdAt: placedAt,
+          },
+        });
+      };
+
+      for (const line of lines) {
+        await book(line.product.id, 'RESERVATION', line.quantity);
+        if (cancelled || sold) {
+          await book(line.product.id, 'RELEASE', line.quantity);
+        }
+        if (sold) {
+          await book(line.product.id, 'SALE', line.quantity);
+        }
+      }
+    });
+  }
+
+  // Same aggregation as OrdersService.recomputeCustomer.
+  await prisma.$executeRaw`
+    UPDATE customers c
+    SET "totalOrders" = agg.orders,
+        "totalSpent" = agg.spent,
+        "outstandingDebt" = agg.debt,
+        "lastOrderAt" = agg.last_order
+    FROM (
+      SELECT "customerId",
+             COUNT(*) FILTER (WHERE status <> 'CANCELLED')::int AS orders,
+             COALESCE(SUM(total) FILTER (WHERE status = 'DELIVERED'), 0) AS spent,
+             COALESCE(SUM(total - "paidAmount") FILTER (WHERE status = 'DELIVERED'), 0) AS debt,
+             MAX("createdAt") FILTER (WHERE status <> 'CANCELLED') AS last_order
+      FROM orders
+      WHERE "companyId" = ${companyId}
+      GROUP BY "customerId"
+    ) agg
+    WHERE c.id = agg."customerId"
+  `;
+
+  console.log(`✓ orders: ${DEMO_ORDERS.length} orders across the lifecycle`);
+}
+
 async function main(): Promise<void> {
   const referenceOnly = process.argv.includes('--reference-only');
 
@@ -661,6 +858,7 @@ async function main(): Promise<void> {
         select: { id: true },
       });
       await seedCrm(demo.id, agent?.id ?? null);
+      await seedOrders(demo.id, owner?.id ?? null);
     }
   }
 

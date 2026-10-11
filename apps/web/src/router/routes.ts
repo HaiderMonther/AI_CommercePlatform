@@ -63,6 +63,22 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: 'ملف الزبون', permissions: [PERMISSIONS.CUSTOMERS_READ] },
       },
       {
+        path: 'orders',
+        name: 'orders',
+        component: () => import('@/views/orders/OrdersView.vue'),
+        meta: {
+          title: 'الطلبات',
+          icon: 'mdi-cart-outline',
+          permissions: [PERMISSIONS.ORDERS_READ],
+        },
+      },
+      {
+        path: 'orders/:id',
+        name: 'order-detail',
+        component: () => import('@/views/orders/OrderDetailView.vue'),
+        meta: { title: 'تفاصيل الطلب', permissions: [PERMISSIONS.ORDERS_READ] },
+      },
+      {
         path: 'products',
         name: 'products',
         component: () => import('@/views/catalog/ProductsView.vue'),

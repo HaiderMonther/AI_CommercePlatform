@@ -57,11 +57,8 @@ const navSections = computed(() => {
   ].filter((section) => section.items.length > 0);
 });
 
-// Phases 4-7 add these screens; showing them disabled sets expectations without dead links.
-const upcoming = [
-  { title: 'الطلبات', icon: 'mdi-cart-outline' },
-  { title: 'التقارير', icon: 'mdi-chart-box-outline' },
-];
+// Phase 7 adds these screens; showing them disabled sets expectations without dead links.
+const upcoming = [{ title: 'التقارير', icon: 'mdi-chart-box-outline' }];
 
 // One socket for the whole dashboard session. Platform admins have no company, so there
 // is no tenant stream for them to receive.

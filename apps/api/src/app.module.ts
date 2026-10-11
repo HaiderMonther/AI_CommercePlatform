@@ -23,6 +23,7 @@ import { CustomersModule } from '@modules/customers/customers.module';
 import { HealthModule } from '@modules/health/health.module';
 import { InventoryModule } from '@modules/inventory/inventory.module';
 import { MessagesModule } from '@modules/messages/messages.module';
+import { OrdersModule } from '@modules/orders/orders.module';
 import { PermissionsModule } from '@modules/permissions/permissions.module';
 import { ProductsModule } from '@modules/products/products.module';
 import { RealtimeModule } from '@modules/realtime/realtime.module';
@@ -87,6 +88,7 @@ import { UsersModule } from '@modules/users/users.module';
     CustomersModule,
     ConversationsModule,
     MessagesModule,
+    OrdersModule,
   ],
   providers: [
     {

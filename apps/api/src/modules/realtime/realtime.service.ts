@@ -22,6 +22,10 @@ export class RealtimeService {
     this.emit(ROOM.companyConversations(companyId), REALTIME_EVENT.CONVERSATION_UPDATED, conversation);
   }
 
+  orderUpdated(companyId: string, order: unknown): void {
+    this.emit(ROOM.companyOrders(companyId), REALTIME_EVENT.ORDER_UPDATED, order);
+  }
+
   messageCreated(conversationId: string, message: unknown): void {
     this.emit(ROOM.conversation(conversationId), REALTIME_EVENT.MESSAGE_CREATED, {
       conversationId,
