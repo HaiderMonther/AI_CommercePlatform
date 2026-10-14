@@ -9,6 +9,7 @@ const REALTIME_PATH = '/api/socket.io';
 export const REALTIME_EVENT = {
   CONVERSATION_UPDATED: 'conversation:updated',
   MESSAGE_CREATED: 'message:created',
+  MESSAGE_UPDATED: 'message:updated',
   ORDER_UPDATED: 'order:updated',
 } as const;
 

@@ -1,5 +1,5 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { PrismaClient } from '@prisma/client';
 import type { Server } from 'node:http';
 import request from 'supertest';
@@ -13,10 +13,17 @@ export interface TestContext {
   http: () => TestAgent;
 }
 
-export async function createTestApp(): Promise<TestContext> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+export interface TestAppOptions {
+  /** Swap providers before compiling, e.g. the Graph API client for a fake. */
+  configure?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
+}
 
-  const app = moduleRef.createNestApplication();
+export async function createTestApp(options: TestAppOptions = {}): Promise<TestContext> {
+  const builder = Test.createTestingModule({ imports: [AppModule] });
+  const moduleRef = await (options.configure ? options.configure(builder) : builder).compile();
+
+  // rawBody: webhook signatures are checked against the exact bytes, as in main.ts.
+  const app = moduleRef.createNestApplication({ rawBody: true });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
@@ -95,4 +102,19 @@ export async function registerTenant(
 
 export function bearer(token: string): string {
   return `Bearer ${token}`;
+}
+
+/** Polls until `check` returns a value, for work that finishes after the response. */
+export async function waitFor<T>(
+  check: () => Promise<T | null | undefined | false>,
+  { timeoutMs = 5000, intervalMs = 50 } = {},
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+
+  for (;;) {
+    const value = await check();
+    if (value) return value;
+    if (Date.now() > deadline) throw new Error('waitFor timed out');
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
 }

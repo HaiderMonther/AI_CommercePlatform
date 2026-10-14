@@ -10,6 +10,8 @@ export const REALTIME_EVENT = {
   CONVERSATION_UPDATED: 'conversation:updated',
   /** A message was added to a conversation the client has joined. */
   MESSAGE_CREATED: 'message:created',
+  /** A message's delivery state changed (sent, delivered, read, failed). */
+  MESSAGE_UPDATED: 'message:updated',
   /** Order list row changed: created, status, payment, lines or details. */
   ORDER_UPDATED: 'order:updated',
 

@@ -94,4 +94,7 @@ export const conversationsService = {
 
   send: (id: string, content: string) =>
     unwrap<Message>(http.post(`/conversations/${id}/messages`, { content })),
+
+  retry: (id: string, messageId: string) =>
+    unwrap<Message>(http.post(`/conversations/${id}/messages/${messageId}/retry`)),
 };

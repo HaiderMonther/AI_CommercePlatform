@@ -17,6 +17,7 @@ import { PrismaModule } from '@common/prisma/prisma.module';
 import { AuditModule } from '@modules/audit/audit.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { CategoriesModule } from '@modules/categories/categories.module';
+import { ChannelsModule } from '@modules/channels/channels.module';
 import { CompaniesModule } from '@modules/companies/companies.module';
 import { ConversationsModule } from '@modules/conversations/conversations.module';
 import { CustomersModule } from '@modules/customers/customers.module';
@@ -29,6 +30,7 @@ import { ProductsModule } from '@modules/products/products.module';
 import { RealtimeModule } from '@modules/realtime/realtime.module';
 import { RolesModule } from '@modules/roles/roles.module';
 import { UsersModule } from '@modules/users/users.module';
+import { WebhooksModule } from '@modules/webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -89,6 +91,8 @@ import { UsersModule } from '@modules/users/users.module';
     ConversationsModule,
     MessagesModule,
     OrdersModule,
+    ChannelsModule,
+    WebhooksModule,
   ],
   providers: [
     {

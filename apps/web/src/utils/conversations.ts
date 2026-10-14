@@ -51,3 +51,13 @@ export function dayKey(value: string): string {
   const date = new Date(value);
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
+
+/**
+ * Applies a delivery update (sent, delivered, read, failed). The update can overtake the
+ * HTTP response of the send itself, so a message not shown yet is added rather than lost.
+ */
+export function updateMessage(messages: Message[], message: Message): Message[] {
+  return messages.some((existing) => existing.id === message.id)
+    ? messages.map((existing) => (existing.id === message.id ? message : existing))
+    : appendMessage(messages, message);
+}

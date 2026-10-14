@@ -10,3 +10,6 @@ process.env.SWAGGER_ENABLED = 'false';
 process.env.THROTTLE_LIMIT = '10000';
 process.env.THROTTLE_AUTH_LIMIT = '10000';
 process.env.ARGON_MEMORY_COST = '8192';
+process.env.ENCRYPTION_KEY = 'test-encryption-key-that-is-long-enough-32';
+process.env.META_APP_SECRET = 'test-meta-app-secret';
+process.env.META_VERIFY_TOKEN = 'test-verify-token-value';

@@ -36,6 +36,7 @@ export const PERMISSIONS = {
   ORDERS_UPDATE: 'orders.update',
   ORDERS_DELETE: 'orders.delete',
   CHANNELS_READ: 'channels.read',
+  CHANNELS_MANAGE: 'channels.manage',
   AI_SETTINGS_READ: 'ai.settings.read',
   REPORTS_READ: 'reports.read',
   BILLING_READ: 'billing.read',

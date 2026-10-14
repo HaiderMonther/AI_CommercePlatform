@@ -49,7 +49,14 @@ const navSections = computed(() => {
     }))
     .filter((item) => !item.permissions?.length || auth.can(item.permissions));
 
-  const settingsNames = new Set(['users', 'roles', 'company-settings', 'profile', 'audit-logs']);
+  const settingsNames = new Set([
+    'channels',
+    'users',
+    'roles',
+    'company-settings',
+    'profile',
+    'audit-logs',
+  ]);
 
   return [
     { label: null, items: items.filter((item) => !settingsNames.has(item.name)) },

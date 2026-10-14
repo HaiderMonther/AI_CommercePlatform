@@ -69,6 +69,8 @@ export const ERROR_CODE_LABELS: Record<string, string> = {
   ORDER_INVALID_TRANSITION: 'لا يمكن نقل الطلب إلى هذه الحالة',
   ORDER_NOT_EDITABLE: 'لا يمكن تعديل الطلب في حالته الحالية',
   PRODUCT_UNAVAILABLE: 'المنتج غير متاح للبيع',
+  CHANNEL_ALREADY_CONNECTED: 'هذا الحساب مربوط مسبقاً',
+  MESSAGE_NOT_RETRYABLE: 'يمكن إعادة إرسال الرسائل الفاشلة فقط',
 };
 
 // --- Catalog (Phase 2) -------------------------------------------------------
@@ -249,4 +251,25 @@ export const ORDER_SOURCE_LABELS: Record<string, string> = {
   AGENT: 'موظف',
   DASHBOARD: 'لوحة التحكم',
   API: 'API',
+};
+
+// --- Channels (Phase 5) ------------------------------------------------------
+
+export const CHANNEL_STATUS_LABELS: Record<string, string> = {
+  CONNECTED: 'متصلة',
+  DISCONNECTED: 'غير مفحوصة',
+  ERROR: 'خطأ في الاتصال',
+};
+
+export const CHANNEL_STATUS_COLORS: Record<string, string> = {
+  CONNECTED: 'success',
+  DISCONNECTED: 'default',
+  ERROR: 'error',
+};
+
+/** What Meta calls the account id each channel is connected by. */
+export const CHANNEL_ACCOUNT_ID_LABELS: Record<string, string> = {
+  WHATSAPP: 'Phone number ID',
+  FACEBOOK: 'Page ID',
+  INSTAGRAM: 'Instagram account ID',
 };

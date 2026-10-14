@@ -25,7 +25,7 @@ import type {
   ConversationStatus,
   Message,
 } from '@/types/crm';
-import { appendMessage, dayKey, prependMessages } from '@/utils/conversations';
+import { appendMessage, dayKey, prependMessages, updateMessage } from '@/utils/conversations';
 import { formatDate, formatTime } from '@/utils/format';
 
 const props = defineProps<{
@@ -180,6 +180,30 @@ useRealtimeEvent<{ conversationId: string; message: Message }>(
     if (follow) scrollToBottom();
   },
 );
+
+useRealtimeEvent<{ conversationId: string; message: Message }>(
+  REALTIME_EVENT.MESSAGE_UPDATED,
+  ({ conversationId, message }) => {
+    if (conversationId !== props.conversationId) return;
+    messages.value = updateMessage(messages.value, message);
+  },
+);
+
+const retrying = ref<string | null>(null);
+
+async function retry(message: Message): Promise<void> {
+  retrying.value = message.id;
+  try {
+    messages.value = updateMessage(
+      messages.value,
+      await conversationsService.retry(props.conversationId, message.id),
+    );
+  } catch (error) {
+    ui.error(error instanceof ApiError ? error.message : 'تعذرت إعادة الإرسال');
+  } finally {
+    retrying.value = null;
+  }
+}
 
 useRealtimeEvent<Conversation>(REALTIME_EVENT.CONVERSATION_UPDATED, (conversation) => {
   if (!detail.value || conversation.id !== props.conversationId) return;
@@ -421,6 +445,24 @@ function bubbleColor(message: Message): string | undefined {
                     :title="message.failureReason ?? DELIVERY_STATUS_LABELS[message.deliveryStatus]"
                     size="14"
                   />
+                </div>
+
+                <div
+                  v-if="message.direction === 'OUTBOUND' && message.deliveryStatus === 'FAILED'"
+                  class="d-flex align-center ga-2 mt-1 text-caption text-error"
+                >
+                  <span>{{ message.failureReason ?? DELIVERY_STATUS_LABELS.FAILED }}</span>
+                  <v-btn
+                    v-if="canReply"
+                    size="x-small"
+                    variant="text"
+                    color="error"
+                    prepend-icon="mdi-refresh"
+                    :loading="retrying === message.id"
+                    @click="retry(message)"
+                  >
+                    إعادة
+                  </v-btn>
                 </div>
               </v-sheet>
             </div>

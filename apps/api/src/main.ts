@@ -8,7 +8,8 @@ import { RealtimeIoAdapter } from '@modules/realtime/realtime-io.adapter';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  // rawBody: webhook signatures are computed over the exact bytes Meta sent.
+  const app = await NestFactory.create(AppModule, { bufferLogs: false, rawBody: true });
   const config = app.get(ConfigService);
 
   const port = config.getOrThrow<number>('app.port');
@@ -50,6 +51,9 @@ async function bootstrap(): Promise<void> {
       .addTag('Customers', 'الزبائن')
       .addTag('Conversations', 'المحادثات')
       .addTag('Messages', 'رسائل المحادثات')
+      .addTag('Orders', 'الطلبات')
+      .addTag('Channels', 'قنوات واتساب وإنستغرام وماسنجر')
+      .addTag('Webhooks', 'استقبال أحداث Meta')
       .addTag('Audit', 'سجل العمليات')
       .addTag('Health', 'فحص الخدمة')
       .build();

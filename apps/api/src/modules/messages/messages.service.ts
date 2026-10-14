@@ -9,29 +9,21 @@ import {
 } from '@prisma/client';
 import { ERROR_CODE } from '@common/constants/error-codes.constant';
 import { TenantContextService } from '@common/context/tenant-context.service';
-import { BadRequestAppException } from '@common/exceptions/app.exception';
+import {
+  BadRequestAppException,
+  ConflictAppException,
+  NotFoundAppException,
+} from '@common/exceptions/app.exception';
 import { PrismaService } from '@common/prisma/prisma.service';
 import { TENANT_PRISMA, TenantPrismaClient } from '@common/prisma/tenant-prisma.provider';
 import { agentReplyPatch, inboundPatch } from '@modules/conversations/conversation.rules';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 import { ChannelSender, CustomersService } from '@modules/customers/customers.service';
+import { OutboundService } from '@modules/channels/outbound.service';
 import { RealtimeService } from '@modules/realtime/realtime.service';
+import { advancesDelivery } from './delivery-status';
 import { QueryMessagesDto, SendMessageDto } from './dto/message.dto';
-
-const MESSAGE_SELECT = {
-  id: true,
-  conversationId: true,
-  senderType: true,
-  direction: true,
-  type: true,
-  content: true,
-  mediaUrl: true,
-  metadata: true,
-  deliveryStatus: true,
-  failureReason: true,
-  createdAt: true,
-  senderUser: { select: { id: true, fullName: true } },
-} as const satisfies Prisma.MessageSelect;
+import { MESSAGE_SELECT, MessageView } from './message.select';
 
 /** A customer message as a channel provider (Phase 5) hands it over. */
 export interface InboundMessageInput {
@@ -63,6 +55,7 @@ export class MessagesService {
     private readonly conversations: ConversationsService,
     private readonly customers: CustomersService,
     private readonly realtime: RealtimeService,
+    private readonly outbound: OutboundService,
   ) {}
 
   /** A page of the thread, oldest first, ending just before `before` (or at the latest). */
@@ -97,8 +90,8 @@ export class MessagesService {
    * Stores an agent reply and applies its side effects on the conversation (take over
    * from the AI, reopen, self-assign) in one transaction.
    *
-   * The message is saved as PENDING: the outbound queue added with the channel
-   * integrations in Phase 5 delivers it and moves it to SENT / DELIVERED / FAILED.
+   * The message is saved as PENDING and handed to the outbound worker once committed;
+   * delivery receipts then move it to SENT / DELIVERED / READ, or FAILED with a reason.
    */
   async send(conversationId: string, dto: SendMessageDto) {
     const target = await this.conversations.getTarget(conversationId);
@@ -135,7 +128,90 @@ export class MessagesService {
     this.realtime.messageCreated(conversationId, message);
     await this.conversations.publish(conversationId);
 
+    // After the response: the agent sees the bubble at once, the ticks follow live.
+    void this.outbound.dispatch(message.id);
+
     return message;
+  }
+
+  /** Sends a FAILED reply again, e.g. after the channel token was replaced. */
+  async retry(conversationId: string, messageId: string) {
+    await this.conversations.getTarget(conversationId);
+
+    const message = await this.db.message.findFirst({
+      where: { id: messageId, conversationId },
+      select: { id: true, direction: true, deliveryStatus: true },
+    });
+
+    if (!message) {
+      throw new NotFoundAppException('الرسالة غير موجودة');
+    }
+    if (
+      message.direction !== MessageDirection.OUTBOUND ||
+      message.deliveryStatus !== MessageDeliveryStatus.FAILED
+    ) {
+      throw new ConflictAppException(
+        'يمكن إعادة إرسال الرسائل الفاشلة فقط',
+        ERROR_CODE.MESSAGE_NOT_RETRYABLE,
+      );
+    }
+
+    // Clears the attempt counter so the retry gets a full set of attempts.
+    await this.prisma.$executeRaw`
+      UPDATE messages
+      SET "deliveryStatus" = 'PENDING',
+          "failureReason" = NULL,
+          metadata = CASE WHEN metadata IS NULL THEN NULL ELSE metadata - 'delivery' END
+      WHERE id = ${messageId} AND "companyId" = ${this.requireCompanyId()}
+    `;
+
+    const updated = await this.db.message.findFirstOrThrow({
+      where: { id: messageId },
+      select: MESSAGE_SELECT,
+    });
+    this.realtime.messageUpdated(conversationId, updated);
+    await this.conversations.publish(conversationId);
+
+    void this.outbound.dispatch(messageId);
+    return updated;
+  }
+
+  /**
+   * Applies a delivery receipt from the provider. Receipts arrive out of order, so only
+   * forward moves are applied. Returns false when the message is not ours (sent from
+   * Meta's own inbox, say).
+   */
+  async applyDeliveryStatus(
+    externalId: string,
+    status: MessageDeliveryStatus,
+    failureReason: string | null,
+  ): Promise<boolean> {
+    const message = await this.db.message.findFirst({
+      where: { externalId, direction: MessageDirection.OUTBOUND },
+      select: { id: true, conversationId: true, deliveryStatus: true },
+    });
+
+    if (!message) {
+      return false;
+    }
+    if (!advancesDelivery(message.deliveryStatus, status)) {
+      return true;
+    }
+
+    const updated = await this.db.message.update({
+      where: { id: message.id },
+      data: {
+        deliveryStatus: status,
+        ...(status === MessageDeliveryStatus.FAILED
+          ? { failureReason: failureReason?.slice(0, 500) ?? 'فشل التسليم لدى Meta' }
+          : {}),
+      },
+      select: MESSAGE_SELECT,
+    });
+
+    this.realtime.messageUpdated(message.conversationId, updated);
+    await this.conversations.publish(message.conversationId);
+    return true;
   }
 
   /**
@@ -157,7 +233,7 @@ export class MessagesService {
     const target = await this.conversations.findReusable(customerId, input.sender.channel);
     const at = input.receivedAt ?? new Date();
 
-    let result: { message: Prisma.MessageGetPayload<{ select: typeof MESSAGE_SELECT }>; created: boolean };
+    let result: { message: MessageView; created: boolean };
 
     try {
       result = await this.prisma.$transaction(async (tx) => {
@@ -195,9 +271,7 @@ export class MessagesService {
 
         await tx.conversation.update({
           where: { id: conversationId },
-          data: target
-            ? inboundPatch(target, at)
-            : { lastMessageAt: at, unreadCount: 1 },
+          data: target ? inboundPatch(target, at) : { lastMessageAt: at, unreadCount: 1 },
         });
 
         await tx.customer.update({ where: { id: customerId }, data: { lastContactAt: at } });
@@ -228,7 +302,9 @@ export class MessagesService {
     };
   }
 
-  private async findByExternalId(externalId: string | null | undefined): Promise<InboundResult | null> {
+  private async findByExternalId(
+    externalId: string | null | undefined,
+  ): Promise<InboundResult | null> {
     if (!externalId) {
       return null;
     }

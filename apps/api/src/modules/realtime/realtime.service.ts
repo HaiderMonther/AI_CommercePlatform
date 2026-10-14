@@ -19,7 +19,11 @@ export class RealtimeService {
   }
 
   conversationUpdated(companyId: string, conversation: unknown): void {
-    this.emit(ROOM.companyConversations(companyId), REALTIME_EVENT.CONVERSATION_UPDATED, conversation);
+    this.emit(
+      ROOM.companyConversations(companyId),
+      REALTIME_EVENT.CONVERSATION_UPDATED,
+      conversation,
+    );
   }
 
   orderUpdated(companyId: string, order: unknown): void {
@@ -28,6 +32,13 @@ export class RealtimeService {
 
   messageCreated(conversationId: string, message: unknown): void {
     this.emit(ROOM.conversation(conversationId), REALTIME_EVENT.MESSAGE_CREATED, {
+      conversationId,
+      message,
+    });
+  }
+
+  messageUpdated(conversationId: string, message: unknown): void {
+    this.emit(ROOM.conversation(conversationId), REALTIME_EVENT.MESSAGE_UPDATED, {
       conversationId,
       message,
     });

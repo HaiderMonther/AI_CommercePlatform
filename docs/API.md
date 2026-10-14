@@ -85,6 +85,11 @@
 | `ORDER_INVALID_TRANSITION` | 409 | انتقال غير مسموح في دورة حياة الطلب (`details.allowed`) |
 | `ORDER_NOT_EDITABLE` | 409 | الطلب في حالة لا تسمح بهذا التعديل |
 | `ORDER_CREATE_FAILED` | 409 | تعارض متزامن أثناء إنشاء الطلب، أعد المحاولة |
+| `CHANNEL_NOT_FOUND` | 404 | القناة غير موجودة |
+| `CHANNEL_ALREADY_CONNECTED` | 409 | الحساب مربوط بهذا المتجر أو بمتجر آخر |
+| `CHANNEL_NOT_CONFIGURED` | 400/500 | لا يوجد رمز وصول، أو `ENCRYPTION_KEY` غير مضبوط |
+| `WEBHOOK_SIGNATURE_INVALID` | 401 | توقيع Meta مفقود أو غير صحيح |
+| `MESSAGE_NOT_RETRYABLE` | 409 | إعادة الإرسال للرسائل الصادرة الفاشلة فقط |
 | `CONFLICT` | 409 | تعارض في قيمة فريدة |
 | `RATE_LIMITED` | 429 | تجاوز حد الطلبات |
 | `INTERNAL_ERROR` | 500 | خطأ غير متوقع |
@@ -343,13 +348,70 @@ OPEN ──▶ PENDING ──▶ RESOLVED ──▶ CLOSED
 | --- | --- | --- |
 | `GET` | `/conversations/:id/messages` | `conversations.read` |
 | `POST` | `/conversations/:id/messages` | `conversations.reply` |
+| `POST` | `/conversations/:id/messages/:messageId/retry` | `conversations.reply` |
 
 القراءة بمؤشر لا بصفحات، لأن المحادثة تنمو أثناء قراءتها:
 `?limit=50&before=<messageId>` يُرجع `{ items, hasMore, nextBefore }` مرتبة من الأقدم للأحدث.
 
 **رد الموظف** (`{ "content": "..." }`، حتى 4096 حرفاً) يُحفظ بحالة `PENDING`، وفي
 المعاملة نفسها: يحوّل المحادثة إلى HUMAN، يعيد فتحها إن كانت منتهية، يسندها للموظف إن لم
-تكن مسندة، ويصفّر غير المقروء. الإرسال الفعلي للقناة يأتي مع المرحلة 5.
+تكن مسندة، ويصفّر غير المقروء. بعد الحفظ يُرسل للقناة في الخلفية، وتتقدم حالته
+`PENDING → SENT → DELIVERED → READ` مع إيصالات Meta، أو تصبح `FAILED` مع `failureReason`
+بالعربية (انتهاء نافذة الـ24 ساعة، رمز قناة منتهٍ، لا توجد قناة مفعّلة…). الرد الفاشل يُعاد
+إرساله بـ`/retry` بعد إصلاح السبب.
+
+### القنوات
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/channels` | `channels.read` |
+| `GET` | `/channels/:id` | `channels.read` |
+| `POST` | `/channels` | `channels.manage` |
+| `PATCH` | `/channels/:id` | `channels.manage` |
+| `POST` | `/channels/:id/verify` | `channels.manage` |
+| `DELETE` | `/channels/:id` | `channels.manage` |
+
+```json
+{ "type": "WHATSAPP", "name": "واتساب المبيعات", "externalId": "106540352242922", "accessToken": "EAAG..." }
+```
+
+| القناة | `externalId` |
+| --- | --- |
+| `WHATSAPP` | Phone number ID (من WhatsApp Manager، لا رقم الهاتف) |
+| `FACEBOOK` | Page ID |
+| `INSTAGRAM` | Instagram business account ID |
+
+- رمز الوصول يُشفَّر (AES-256-GCM بمفتاح `ENCRYPTION_KEY`) **ولا يُعاد أبداً**؛ الاستجابة تحمل
+  `hasAccessToken` و`tokenHint` (آخر 4 أحرف) فقط.
+- الإضافة وتغيير الرمز يفحصانه لدى Meta فوراً: النتيجة في `status`
+  (`CONNECTED` · `ERROR` · `DISCONNECTED`) و`lastError`. الحفظ يتم حتى لو فشل الفحص.
+- الحساب الواحد يُربط بمتجر واحد على المنصة (`409 CHANNEL_ALREADY_CONNECTED`)، وإلا انقسمت رسائله.
+- `isActive: false` يوقف القناة: رسائلها الواردة تُتجاهل ولا يُرسل منها.
+- كل قناة تحمل `webhookPath` — العنوان الذي يُوضع في تطبيق Meta.
+
+### Webhooks (عامة، لـMeta فقط)
+
+```
+GET   /webhooks/{whatsapp|instagram|facebook}   تحقق Meta: يُرجع hub.challenge نصاً
+POST  /webhooks/{whatsapp|instagram|facebook}   الأحداث، موقّعة بـX-Hub-Signature-256
+```
+
+- **التحقق** ينجح فقط إذا طابق `hub.verify_token` قيمة `META_VERIFY_TOKEN`، وإلا `403`.
+- **التوقيع** HMAC-SHA256 للبايتات الخام بـ`META_APP_SECRET`؛ غيابه أو خطؤه `401
+  WEBHOOK_SIGNATURE_INVALID` دون تخزين شيء. بدون `META_APP_SECRET` تُقبل الطلبات غير الموقّعة
+  في التطوير فقط (مع `signatureValid: false`)، وتُرفض في الإنتاج.
+- **الرد فوري**: يُحلَّل الطلب ويُخزَّن كل حدث في `webhook_events` ثم يُرد `200`
+  بـ`{ received, queued }`، والمعالجة بعد الرد.
+- **Idempotent**: المفتاح الفريد `(channel, externalEventId)` يجعل إعادة إرسال Meta لنفس الحدث
+  بلا أثر (`queued: 0`).
+- الحدث لحساب غير مربوط يُخزَّن `IGNORED` بلا شركة.
+
+| النوع | يُحوَّل إلى |
+| --- | --- |
+| واتساب: نص، صورة، صوت، فيديو، ملف، موقع، ملصق، رد زر | رسالة واردة (`type` المناسب، والوسائط بنص بديل مثل `[صورة]`) |
+| ماسنجر وإنستغرام: نص ومرفقات | رسالة واردة (`mediaUrl` من Meta) |
+| واتساب `statuses` · ماسنجر `delivery` | تحديث حالة رسالة صادرة (للأمام فقط) |
+| رسائل الصدى `is_echo` وردود الفعل (reactions) | تُتجاهل |
 
 ### الطلبات
 
@@ -449,6 +511,7 @@ path:  /api/socket.io          auth: { token: "<accessToken>" }
 | `conversation:leave` | عميل → خادم | `{ conversationId }` |
 | `conversation:updated` | خادم → عميل | صف صندوق المحادثات كاملاً، لكل من يملك `conversations.read` |
 | `message:created` | خادم → عميل | `{ conversationId, message }` لمن انضم لغرفة المحادثة |
+| `message:updated` | خادم → عميل | `{ conversationId, message }` عند تغيّر حالة التسليم، لمن انضم للمحادثة |
 | `order:updated` | خادم → عميل | صف قائمة الطلبات كاملاً، أو `{ id, deleted: true }`، لكل من يملك `orders.read` |
 
 رفض الاتصال يصل في `connect_error` ورسالته رمز الخطأ: `TOKEN_EXPIRED` (جدّد الرمز وأعد
@@ -505,7 +568,6 @@ path:  /api/socket.io          auth: { token: "<accessToken>" }
 
 | المرحلة | النقاط |
 | --- | --- |
-| 5 | `/channels` · `/webhooks/whatsapp` · `/webhooks/instagram` · `/webhooks/facebook` |
 | 6 | `/ai/config` · `/ai/test` · `/conversations/:id/handover` |
 | 7 | `/dashboard/summary` · `/reports/*` · `/notifications` |
 | 8 | `/billing/subscription` · `/billing/invoices` · `/billing/usage` |

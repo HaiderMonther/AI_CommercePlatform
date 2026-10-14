@@ -15,7 +15,7 @@
                    ┌────────▼────────┐
                    │ Channels Module │  ChannelProvider abstraction
                    └────────┬────────┘
-                            │ enqueue (BullMQ)
+                            │ inbox (webhook_events)
                    ┌────────▼────────────┐
                    │ Conversation Service│ ← Customer resolution
                    └────────┬────────────┘
@@ -212,7 +212,7 @@ src/
     ├── permissions/   ✅ كتالوج الصلاحيات
     ├── audit/         ✅ سجل العمليات الحساسة
     ├── health/        ✅ فحص الجاهزية
-    ├── products/      ✅ منتجات ومتغيرات  ├── channels/     ⏳ المرحلة 5
+    ├── products/      ✅ منتجات ومتغيرات  ├── channels/     ✅ القنوات والإرسال والـwebhooks
     ├── categories/    ✅ شجرة التصنيفات   ├── ai/           ⏳ المرحلة 6
     ├── inventory/     ✅ سجل حركة المخزون
     ├── customers/     ✅ الزبائن وحل هوية المرسل  ├── reports/      ⏳ المرحلة 7
@@ -316,14 +316,38 @@ Tool Layer (allow-list صارمة)
 الـWebhook يجب أن يرد خلال ثوانٍ وإلا أعادت Meta الإرسال. لذلك:
 
 ```
-Webhook → التحقق من التوقيع → تخزين WebhookEvent → 200 OK فوراً
-                                      │
-                                      ▼ (BullMQ على Redis)
-                        معالجة: زبون → محادثة → رسالة → AI → رد
+الوارد (inbox)
+Webhook → توقيع HMAC → تحليل → webhook_events (فريد لكل حدث) → 200 OK
+                                      │ بعد الرد
+                                      ▼ claim ذرّي
+                    زبون → محادثة → رسالة → [AI — المرحلة 6]
+
+الصادر (outbox)
+رد الموظف → messages (PENDING) في نفس معاملة المحادثة → commit
+                                      │ بعد الرد
+                                      ▼ claim بـlease
+                       Graph API → SENT ← إيصالات Meta → DELIVERED → READ
 ```
 
-الطوابير المخططة: `webhooks`، `ai-processing`، `outbound-messages`، `notifications`،
-`reports`. مع إعادة محاولة أسّية و dead-letter queue.
+**PostgreSQL هو الطابور، لا BullMQ.** كان المخطط BullMQ، لكن Redis في هذا المشروع اختياري
+(الـAPI يعمل بدونه)، وجعل استلام الرسائل وإرسالها يعتمد عليه يحوّل عطل Redis إلى ضياع رسائل.
+الجدولان موجودان أصلاً بالحقول اللازمة، فصار كل منهما طابوره:
+
+- **`webhook_events` صندوق الوارد.** يُطالَب بالحدث بـ`UPDATE ... WHERE status IN
+  ('RECEIVED','FAILED') RETURNING` واحد، فلا يعالجه عاملان معاً. الفشل يُحفظ مع الخطأ ويُعاد
+  بتراجع أسّي (30 ث × 2^المحاولة) حتى 5 محاولات، ثم يبقى `FAILED` للفحص اليدوي.
+  `recordInbound` idempotent على معرف رسالة المزوّد كخط دفاع ثانٍ.
+- **`messages` صندوق الصادر.** الرد يُحفظ `PENDING` مع تحديث المحادثة في معاملة واحدة، ثم
+  يُطالَب به بـlease مدته 60 ث (`metadata.delivery.notBefore`) قبل كل محاولة، فلا يُرسل مرتين
+  حتى لو تزامن الإرسال الفوري مع الكنس أو مع نسخة أخرى من الـAPI.
+- **تصنيف أخطاء Graph** يحدد المصير: مؤقت (شبكة، 5xx، حدود المعدل) → إعادة بتراجع؛ رمز منتهٍ →
+  `FAILED` والقناة `ERROR`؛ خارج نافذة الـ24 ساعة أو رفض نهائي → `FAILED` بسبب واضح للموظف.
+- **الكنس** كل 15 ثانية (`WORKER_SWEEP_INTERVAL_MS`) في كل نسخة يلتقط ما فات: أحداث لم
+  تُعالج، فشل مؤقت حان موعده، أو عامل مات أثناء المعالجة. وما بقي `PENDING` أكثر من 24 ساعة
+  يصبح `FAILED` لأن Meta لن تقبله.
+
+متى يصبح الحمل أكبر مما يحتمله الكنس من قاعدة البيانات، يُستبدل هذا بطابور مخصص دون تغيير
+الخدمات: نقطتا الدخول `WebhookProcessorService.process` و`OutboundService.dispatch` فقط.
 
 ---
 
@@ -335,7 +359,7 @@ WebSocket (Socket.IO) على `/api/socket.io`، خلف نفس بروكسي ال�
 company:{id}                 كل أعضاء الشركة (إشعارات المراحل القادمة)
 company:{id}:conversations   من يملك conversations.read ← conversation:updated
 company:{id}:orders          من يملك orders.read ← order:updated
-conversation:{id}            بالانضمام الصريح بعد تحقق الشركة ← message:created
+conversation:{id}            بالانضمام الصريح بعد تحقق الشركة ← message:created · message:updated
 user:{id}                    إشعارات شخصية
 ```
 

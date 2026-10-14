@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { RequirePermissions } from '@common/decorators/permissions.decorator';
@@ -34,5 +34,14 @@ export class MessagesController {
   })
   send(@Param('conversationId') conversationId: string, @Body() dto: SendMessageDto) {
     return this.messagesService.send(conversationId, dto);
+  }
+
+  @Post(':messageId/retry')
+  @HttpCode(200)
+  @RequirePermissions(PERMISSIONS.CONVERSATIONS_REPLY)
+  @ResponseMessage('أُعيد إرسال الرسالة')
+  @ApiOperation({ summary: 'إعادة إرسال رد فشل تسليمه' })
+  retry(@Param('conversationId') conversationId: string, @Param('messageId') messageId: string) {
+    return this.messagesService.retry(conversationId, messageId);
   }
 }

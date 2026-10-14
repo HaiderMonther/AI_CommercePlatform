@@ -31,12 +31,28 @@ export interface SecurityConfig {
   bcryptMemoryCost: number;
 }
 
+export interface MetaConfig {
+  /** Signs every webhook delivery (X-Hub-Signature-256). */
+  appSecret: string;
+  /** Echoed back to Meta when it verifies the webhook URL. */
+  verifyToken: string;
+  graphVersion: string;
+  graphBaseUrl: string;
+}
+
+export interface WorkerConfig {
+  /** How often stuck webhooks and unsent replies are swept up; 0 disables the sweep. */
+  sweepIntervalMs: number;
+}
+
 export interface RootConfig {
   app: AppConfig;
   jwt: JwtConfig;
   redis: RedisConfig;
   throttle: ThrottleConfig;
   security: SecurityConfig;
+  meta: MetaConfig;
+  worker: WorkerConfig;
 }
 
 const toInt = (value: string | undefined, fallback: number): number => {
@@ -56,7 +72,9 @@ export default (): RootConfig => ({
     port: toInt(process.env.PORT, 3000),
     apiPrefix: process.env.API_PREFIX ?? 'api/v1',
     frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
-    corsOrigins: toList(process.env.CORS_ORIGINS ?? process.env.FRONTEND_URL ?? 'http://localhost:5173'),
+    corsOrigins: toList(
+      process.env.CORS_ORIGINS ?? process.env.FRONTEND_URL ?? 'http://localhost:5173',
+    ),
     swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
     logLevel: process.env.LOG_LEVEL ?? 'log',
   },
@@ -78,5 +96,16 @@ export default (): RootConfig => ({
   security: {
     encryptionKey: process.env.ENCRYPTION_KEY ?? '',
     bcryptMemoryCost: toInt(process.env.ARGON_MEMORY_COST, 19456),
+  },
+  meta: {
+    appSecret: process.env.META_APP_SECRET ?? '',
+    verifyToken: process.env.META_VERIFY_TOKEN ?? '',
+    graphVersion: process.env.META_GRAPH_VERSION ?? 'v21.0',
+    graphBaseUrl: process.env.META_GRAPH_URL ?? 'https://graph.facebook.com',
+  },
+  worker: {
+    // Tests drive the sweep by hand so timing never decides an assertion.
+    sweepIntervalMs:
+      process.env.NODE_ENV === 'test' ? 0 : toInt(process.env.WORKER_SWEEP_INTERVAL_MS, 15_000),
   },
 });

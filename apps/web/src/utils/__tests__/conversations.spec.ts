@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Conversation, Message } from '@/types/crm';
-import { appendMessage, prependMessages, upsertConversation } from '../conversations';
+import { appendMessage, prependMessages, updateMessage, upsertConversation } from '../conversations';
 
 function conversation(id: string, lastMessageAt: string | null, status = 'OPEN'): Conversation {
   return {
@@ -78,5 +78,35 @@ describe('prependMessages', () => {
     const older = [message('m1', '2026-01-02T10:00:00Z'), message('m3', '2026-01-02T10:02:00Z')];
 
     expect(prependMessages(current, older).map((item) => item.id)).toEqual(['m1', 'm3']);
+  });
+});
+
+describe('updateMessage', () => {
+  const sent = (id: string, createdAt: string) =>
+    ({ ...message(id, createdAt), deliveryStatus: 'SENT' }) as Message;
+
+  it('replaces the message in place', () => {
+    const result = updateMessage(
+      [message('a', '2026-01-01T00:01:00Z'), message('b', '2026-01-01T00:02:00Z')],
+      sent('b', '2026-01-01T00:02:00Z'),
+    );
+
+    expect(result.map((item) => item.deliveryStatus)).toEqual([undefined, 'SENT']);
+  });
+
+  it('adds an update that arrives before the message itself', () => {
+    const result = updateMessage(
+      [message('a', '2026-01-01T00:01:00Z')],
+      message('b', '2026-01-01T00:02:00Z'),
+    );
+
+    expect(result.map((item) => item.id)).toEqual(['a', 'b']);
+  });
+
+  it('keeps the newer state when the send response arrives after its update', () => {
+    const update = sent('b', '2026-01-01T00:02:00Z');
+    const response = { ...update, deliveryStatus: 'PENDING' } as Message;
+
+    expect(appendMessage(updateMessage([], update), response)[0].deliveryStatus).toBe('SENT');
   });
 });

@@ -82,7 +82,24 @@ curl -fsS http://localhost:3000/health
 
 ### قنوات Meta (المرحلة 5)
 
-`META_APP_ID` · `META_APP_SECRET` · `META_VERIFY_TOKEN` · `META_GRAPH_VERSION`
+| المتغير | الافتراضي | الوصف |
+| --- | --- | --- |
+| `META_APP_SECRET` | — | يتحقق من توقيع كل webhook. **إلزامي في الإنتاج**: بدونه تُرفض كل الأحداث |
+| `META_VERIFY_TOKEN` | — | نص عشوائي (16 حرفاً على الأقل) يُكتب نفسه في إعداد الـwebhook في تطبيق Meta |
+| `META_GRAPH_VERSION` | `v21.0` | إصدار Graph API |
+| `ENCRYPTION_KEY` | — | يشفّر رموز وصول القنوات. **تغييره يُبطل الرموز المخزّنة** فيجب إدخالها من جديد |
+| `WORKER_SWEEP_INTERVAL_MS` | `15000` | كنس الأحداث والردود المتأخرة؛ `0` يعطّله |
+| `META_APP_ID` | — | للمرجع فقط حالياً |
+
+**ربط Meta خطوة بخطوة**
+
+1. في تطبيق Meta (developers.facebook.com) أضف منتجات WhatsApp و/أو Messenger و/أو Instagram.
+2. Webhooks ← عنوان الاستدعاء: `https://<النطاق>/api/v1/webhooks/whatsapp` (أو `facebook` /
+   `instagram`)، ورمز التحقق = `META_VERIFY_TOKEN`. اشترك في حقل `messages`
+   (وفي ماسنجر/إنستغرام: `messages` و`message_deliveries`).
+3. أنشئ System User في Business Manager برمز دائم بصلاحيات `whatsapp_business_messaging`
+   أو `pages_messaging` / `instagram_manage_messages`.
+4. في لوحة المتجر ← القنوات ← ربط قناة: المعرف والرمز. يُفحص الاتصال فوراً.
 
 ### الذكاء الاصطناعي (المرحلة 6)
 
@@ -136,8 +153,8 @@ docker compose exec -T postgres pg_restore -U aicommerce -d ai_commerce --clean 
 | التخزين | خارج الخادم (S3 أو ما يعادله)، مشفّر |
 | الاختبار | استعادة تجريبية شهرية — نسخة لم تُختبر ليست نسخة |
 
-Redis يحمل كاشاً وطوابير فقط. فقدانه لا يفقد بيانات دائمة، لكن يفقد المهام المعلّقة،
-لذا فعّل AOF (مفعّل في `docker-compose.yml`).
+Redis يحمل بث الزمن الحقيقي بين النسخ فقط. الرسائل الواردة والصادرة تنتظر في PostgreSQL
+(`webhook_events` و`messages`)، فلا يضيع شيء بفقدان Redis، وتشملها النسخة الاحتياطية للقاعدة.
 
 ---
 
@@ -178,7 +195,9 @@ docker compose logs api | grep '<correlationId>'     # تتبع طلب واحد
 | زمن الاستجابة p95 | > 1 ثانية |
 | فشل فحص الجاهزية | مرتان متتاليتان |
 | اتصالات PostgreSQL | > 80% من الحد الأقصى |
-| طول طابور BullMQ | > 1000 مهمة (من المرحلة 5) |
+| `webhook_events` بحالة `FAILED` و`attempts = 5` | أي ظهور — حدث لن يُعاد تلقائياً |
+| رسائل صادرة `PENDING` أقدم من 5 دقائق | > 0 مستمر — Meta لا تستجيب أو القناة معطلة |
+| قنوات بحالة `ERROR` | أي قناة — غالباً رمز وصول منتهٍ |
 | `auth.token_reuse_detected` في سجل التدقيق | أي ظهور — مؤشر سرقة رمز |
 
 ---
@@ -222,7 +241,7 @@ Load Balancer ────┼── api (نسخة 2) ──┼──▶ PostgreS
 1. **المايكريشن** عبر خدمة `migrate` وحدها، لا من نسخ الـAPI.
 2. **WebSocket** يبث بين النسخ عبر Redis adapter تلقائياً. إن تعذّر Redis عند الإقلاع
    تعمل كل نسخة وحدها ويُسجَّل تحذير — مقبول لنسخة واحدة، لا لعدة نسخ.
-3. **الطوابير** تتوسع بزيادة عمّال BullMQ مستقلين عن نسخ الـAPI (المرحلة 5).
+3. **الوارد والصادر** يتوزعان بين النسخ تلقائياً: كل نسخة تكنس، والمطالبة الذرّية تمنع التكرار.
 4. **القراءة** يمكن توجيه التقارير الثقيلة إلى read replica (المرحلة 7).
 
 ---

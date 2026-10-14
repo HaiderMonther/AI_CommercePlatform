@@ -36,6 +36,15 @@ class EnvironmentVariables {
   @IsOptional()
   @MinLength(32, { message: 'ENCRYPTION_KEY must be at least 32 characters' })
   ENCRYPTION_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  META_APP_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  @MinLength(16, { message: 'META_VERIFY_TOKEN must be at least 16 characters' })
+  META_VERIFY_TOKEN?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
