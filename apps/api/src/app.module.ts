@@ -14,6 +14,7 @@ import { PermissionsGuard } from '@common/guards/permissions.guard';
 import { LoggingInterceptor } from '@common/interceptors/logging.interceptor';
 import { ResponseInterceptor } from '@common/interceptors/response.interceptor';
 import { PrismaModule } from '@common/prisma/prisma.module';
+import { AiModule } from '@modules/ai/ai.module';
 import { AuditModule } from '@modules/audit/audit.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { CategoriesModule } from '@modules/categories/categories.module';
@@ -93,6 +94,7 @@ import { WebhooksModule } from '@modules/webhooks/webhooks.module';
     OrdersModule,
     ChannelsModule,
     WebhooksModule,
+    AiModule,
   ],
   providers: [
     {

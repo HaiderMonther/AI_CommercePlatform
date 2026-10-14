@@ -103,7 +103,15 @@ curl -fsS http://localhost:3000/health
 
 ### الذكاء الاصطناعي (المرحلة 6)
 
-`AI_API_KEY` · `AI_MODEL`
+| المتغير | الافتراضي | الوصف |
+| --- | --- | --- |
+| `AI_API_KEY` | — | مفتاح Claude API من console.anthropic.com. بدونه يبقى المساعد متوقفاً وتصل كل المحادثات للموظفين |
+| `AI_MODEL` | `claude-opus-5-5` | النموذج للشركات التي لم تختر نموذجاً |
+| `AI_REPLY_DELAY_MS` | `1500` | انتظار قبل الرد لتجميع رسائل الزبون المتتابعة |
+
+**التكلفة:** كل رد يُسجَّل في `ai_interactions` بالرموز، ويُجمع يومياً في `usage_records`
+(`AI_MESSAGES` و`AI_TOKENS`) لكل شركة. Claude Haiku 5.5 أرخص بكثير لمتجر عالي الحجم،
+ويُختار من إعدادات المساعد.
 
 ---
 
@@ -198,6 +206,7 @@ docker compose logs api | grep '<correlationId>'     # تتبع طلب واحد
 | `webhook_events` بحالة `FAILED` و`attempts = 5` | أي ظهور — حدث لن يُعاد تلقائياً |
 | رسائل صادرة `PENDING` أقدم من 5 دقائق | > 0 مستمر — Meta لا تستجيب أو القناة معطلة |
 | قنوات بحالة `ERROR` | أي قناة — غالباً رمز وصول منتهٍ |
+| `ai_interactions.success = false` | > 5% خلال ساعة — مفتاح خاطئ أو حدود معدل |
 | `auth.token_reuse_detected` في سجل التدقيق | أي ظهور — مؤشر سرقة رمز |
 
 ---

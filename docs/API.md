@@ -90,6 +90,8 @@
 | `CHANNEL_NOT_CONFIGURED` | 400/500 | لا يوجد رمز وصول، أو `ENCRYPTION_KEY` غير مضبوط |
 | `WEBHOOK_SIGNATURE_INVALID` | 401 | توقيع Meta مفقود أو غير صحيح |
 | `MESSAGE_NOT_RETRYABLE` | 409 | إعادة الإرسال للرسائل الصادرة الفاشلة فقط |
+| `AI_NOT_CONFIGURED` | 503 | `AI_API_KEY` غير مضبوط على الخادم |
+| `AI_PROVIDER_ERROR` | 502 | فشل استدعاء Claude API أثناء التجربة |
 | `CONFLICT` | 409 | تعارض في قيمة فريدة |
 | `RATE_LIMITED` | 429 | تجاوز حد الطلبات |
 | `INTERNAL_ERROR` | 500 | خطأ غير متوقع |
@@ -499,6 +501,49 @@ NEW ─▶ CONFIRMED ─▶ PREPARING ─▶ SHIPPED ─▶ DELIVERED
 
 **الحذف** للطلبات الملغاة فقط؛ الطلب الحي يُلغى ليُفك حجزه عبر دورة الحياة.
 
+### المساعد الذكي
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/ai/config` | `ai.settings.read` |
+| `PATCH` | `/ai/config` | `ai.settings.update` |
+| `POST` | `/ai/test` | `ai.settings.update` |
+
+`GET /ai/config` يُنشئ الإعدادات الافتراضية أول مرة، ويُرجع معها `providerConfigured`
+(هل `AI_API_KEY` مضبوط) و`options` (النماذج والأساليب واللغات المتاحة).
+
+```json
+{
+  "enabled": true,
+  "autoReply": true,
+  "model": "claude-opus-5-5",
+  "tone": "friendly",
+  "language": "ar-IQ",
+  "workingHours": "يومياً 10 صباحاً - 10 مساءً",
+  "deliveryPolicy": "...",
+  "returnPolicy": "...",
+  "paymentMethods": ["CASH_ON_DELIVERY", "ZAIN_CASH"],
+  "handoverKeywords": ["موظف", "شكوى"],
+  "customInstructions": "..."
+}
+```
+
+| الحقل | القيم |
+| --- | --- |
+| `model` | `claude-opus-5-5` · `claude-sonnet-5-5` · `claude-haiku-5-5` |
+| `tone` | `friendly` · `formal` · `enthusiastic` |
+| `language` | `ar-IQ` · `ar` · `en` |
+
+`POST /ai/test` بـ`{ "message": "...", "history": [{ "role": "customer" | "assistant", "content": "..." }] }`
+يشغّل المساعد بالإعدادات المحفوظة: يبحث في الكتالوج فعلياً، أما `create_order` فيتحقق دون
+إنشاء، والتحويل يُبلَّغ فقط. يُرجع `reply` و`handoverReason` و`toolCalls` و`usage` و`latencyMs`.
+محدود بـ20 طلباً في الدقيقة لأنه يستهلك رموزاً. بدون مفتاح: `503 AI_NOT_CONFIGURED`.
+
+**الرد التلقائي** لا نقطة له: يعمل عند كل رسالة واردة في محادثة بوضع `AI`، إذا كان المساعد
+والرد التلقائي مفعّلين والزبون فعّالاً. ردوده رسائل `senderType: AI` تمر بنفس مسار الإرسال
+وإيصالات التسليم، والطلبات التي ينشئها بمصدر `AI`. التحويل لموظف يغيّر `mode` إلى `HUMAN`
+مع `handoverReason`، ويصل للفريق عبر `conversation:updated`.
+
 ### الزمن الحقيقي (Socket.IO)
 
 ```
@@ -568,6 +613,5 @@ path:  /api/socket.io          auth: { token: "<accessToken>" }
 
 | المرحلة | النقاط |
 | --- | --- |
-| 6 | `/ai/config` · `/ai/test` · `/conversations/:id/handover` |
 | 7 | `/dashboard/summary` · `/reports/*` · `/notifications` |
 | 8 | `/billing/subscription` · `/billing/invoices` · `/billing/usage` |

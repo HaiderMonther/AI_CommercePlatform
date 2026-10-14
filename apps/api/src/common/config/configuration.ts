@@ -45,6 +45,15 @@ export interface WorkerConfig {
   sweepIntervalMs: number;
 }
 
+export interface AiProviderConfig {
+  /** Anthropic API key. Without it the agent stays off and conversations go to people. */
+  apiKey: string;
+  /** Model for companies that have not picked one. */
+  defaultModel: string;
+  /** Waits for a burst of customer messages to settle before answering them together. */
+  replyDelayMs: number;
+}
+
 export interface RootConfig {
   app: AppConfig;
   jwt: JwtConfig;
@@ -53,6 +62,7 @@ export interface RootConfig {
   security: SecurityConfig;
   meta: MetaConfig;
   worker: WorkerConfig;
+  ai: AiProviderConfig;
 }
 
 const toInt = (value: string | undefined, fallback: number): number => {
@@ -102,6 +112,11 @@ export default (): RootConfig => ({
     verifyToken: process.env.META_VERIFY_TOKEN ?? '',
     graphVersion: process.env.META_GRAPH_VERSION ?? 'v21.0',
     graphBaseUrl: process.env.META_GRAPH_URL ?? 'https://graph.facebook.com',
+  },
+  ai: {
+    apiKey: process.env.AI_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? '',
+    defaultModel: process.env.AI_MODEL ?? 'claude-opus-5-5',
+    replyDelayMs: process.env.NODE_ENV === 'test' ? 0 : toInt(process.env.AI_REPLY_DELAY_MS, 1500),
   },
   worker: {
     // Tests drive the sweep by hand so timing never decides an assertion.

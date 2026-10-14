@@ -145,6 +145,16 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: 'حسابي', icon: 'mdi-account-circle-outline' },
       },
       {
+        path: 'settings/ai',
+        name: 'ai-settings',
+        component: () => import('@/views/settings/AiSettingsView.vue'),
+        meta: {
+          title: 'المساعد الذكي',
+          icon: 'mdi-robot-outline',
+          permissions: [PERMISSIONS.AI_SETTINGS_READ],
+        },
+      },
+      {
         path: 'settings/channels',
         name: 'channels',
         component: () => import('@/views/settings/ChannelsView.vue'),

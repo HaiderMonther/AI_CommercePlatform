@@ -50,6 +50,7 @@ const navSections = computed(() => {
     .filter((item) => !item.permissions?.length || auth.can(item.permissions));
 
   const settingsNames = new Set([
+    'ai-settings',
     'channels',
     'users',
     'roles',

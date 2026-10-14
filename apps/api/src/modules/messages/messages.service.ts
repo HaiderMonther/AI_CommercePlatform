@@ -134,6 +134,41 @@ export class MessagesService {
     return message;
   }
 
+  /**
+   * Stores a reply written by the AI agent and queues it for delivery. Unlike an agent
+   * reply it leaves mode, assignee and unread count alone: the AI answering does not mean
+   * a person has seen the conversation.
+   */
+  async recordAiReply(conversationId: string, content: string) {
+    const companyId = this.requireCompanyId();
+    const now = new Date();
+
+    const message = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.message.create({
+        data: {
+          companyId,
+          conversationId,
+          senderType: SenderType.AI,
+          direction: MessageDirection.OUTBOUND,
+          type: MessageType.TEXT,
+          content,
+          deliveryStatus: MessageDeliveryStatus.PENDING,
+          createdAt: now,
+        },
+        select: MESSAGE_SELECT,
+      });
+
+      await tx.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: now } });
+      return created;
+    });
+
+    this.realtime.messageCreated(conversationId, message);
+    await this.conversations.publish(conversationId);
+    void this.outbound.dispatch(message.id);
+
+    return message;
+  }
+
   /** Sends a FAILED reply again, e.g. after the channel token was replaced. */
   async retry(conversationId: string, messageId: string) {
     await this.conversations.getTarget(conversationId);

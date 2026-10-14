@@ -191,6 +191,7 @@ async function seedDemoCompany(): Promise<void> {
       currency: 'IQD',
       deliveryPolicy: 'التوصيل خلال 24-48 ساعة داخل بغداد، 2-4 أيام للمحافظات.',
       returnPolicy: 'الاستبدال خلال 3 أيام مع الفاتورة وبشرط عدم الاستعمال.',
+      workingHours: { text: 'يومياً من 10 صباحاً إلى 10 مساءً، والطلبات تُستقبل على مدار الساعة' },
       paymentMethods: ['CASH_ON_DELIVERY', 'ZAIN_CASH'],
       handoverKeywords: ['موظف', 'شكوى', 'مدير'],
     },

@@ -71,6 +71,8 @@ export const ERROR_CODE_LABELS: Record<string, string> = {
   PRODUCT_UNAVAILABLE: 'المنتج غير متاح للبيع',
   CHANNEL_ALREADY_CONNECTED: 'هذا الحساب مربوط مسبقاً',
   MESSAGE_NOT_RETRYABLE: 'يمكن إعادة إرسال الرسائل الفاشلة فقط',
+  AI_NOT_CONFIGURED: 'المساعد الذكي غير مفعّل على الخادم',
+  AI_PROVIDER_ERROR: 'تعذّر الاتصال بالمساعد الذكي',
 };
 
 // --- Catalog (Phase 2) -------------------------------------------------------
@@ -272,4 +274,26 @@ export const CHANNEL_ACCOUNT_ID_LABELS: Record<string, string> = {
   WHATSAPP: 'Phone number ID',
   FACEBOOK: 'Page ID',
   INSTAGRAM: 'Instagram account ID',
+};
+
+// --- AI agent (Phase 6) ------------------------------------------------------
+
+export const AI_TONE_LABELS: Record<string, string> = {
+  friendly: 'ودود',
+  formal: 'رسمي',
+  enthusiastic: 'متحمس',
+};
+
+export const AI_LANGUAGE_LABELS: Record<string, string> = {
+  'ar-IQ': 'العربية (اللهجة العراقية)',
+  ar: 'العربية الفصحى',
+  en: 'الإنجليزية',
+};
+
+export const AI_TOOL_LABELS: Record<string, string> = {
+  search_products: 'بحث في المنتجات',
+  get_product_details: 'تفاصيل منتج',
+  get_customer_orders: 'طلبات الزبون',
+  create_order: 'إنشاء طلب',
+  handover_to_human: 'تحويل لموظف',
 };

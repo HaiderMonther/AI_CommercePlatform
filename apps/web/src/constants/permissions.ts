@@ -38,6 +38,7 @@ export const PERMISSIONS = {
   CHANNELS_READ: 'channels.read',
   CHANNELS_MANAGE: 'channels.manage',
   AI_SETTINGS_READ: 'ai.settings.read',
+  AI_SETTINGS_UPDATE: 'ai.settings.update',
   REPORTS_READ: 'reports.read',
   BILLING_READ: 'billing.read',
   AUDIT_READ: 'audit.read',

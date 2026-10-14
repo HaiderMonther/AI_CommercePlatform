@@ -5,6 +5,7 @@ import { ClsService } from 'nestjs-cls';
 import { WorkerConfig } from '@common/config/configuration';
 import { AppClsStore, CLS_KEYS } from '@common/context/request-context';
 import { PrismaService } from '@common/prisma/prisma.service';
+import { AiResponderService } from '@modules/ai/ai-responder.service';
 import { ChannelsService } from '@modules/channels/channels.service';
 import { MessagesService } from '@modules/messages/messages.service';
 import { StoredMetaEvent } from './webhooks.service';
@@ -36,6 +37,7 @@ export class WebhookProcessorService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly messages: MessagesService,
     private readonly channels: ChannelsService,
+    private readonly ai: AiResponderService,
     private readonly cls: ClsService<AppClsStore>,
     private readonly config: ConfigService,
   ) {}
@@ -145,7 +147,7 @@ export class WebhookProcessorService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    await this.messages.recordInbound({
+    const inbound = await this.messages.recordInbound({
       sender: {
         channel: event.channel,
         platformUserId: event.sender.platformUserId,
@@ -162,7 +164,11 @@ export class WebhookProcessorService implements OnModuleInit, OnModuleDestroy {
     });
 
     await this.channels.touch(event.channelId);
-    // Phase 6 hooks the AI agent in here: a new customer message in an AI-mode
-    // conversation is what triggers an automatic reply.
+
+    // Not awaited: writing a reply takes seconds and must not hold up the next event.
+    // The tenant context set for this event carries over into the reply.
+    if (!inbound.duplicate) {
+      void this.ai.onInbound(inbound.conversationId);
+    }
   }
 }

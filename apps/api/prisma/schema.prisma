@@ -603,6 +603,9 @@ model Conversation {
   unreadCount    Int                @default(0)
   handoverReason String?
   handoverAt     DateTime?
+  // Lease held while the AI agent writes a reply, so one conversation never gets two
+  // answers at once, even across API instances.
+  aiLockedUntil  DateTime?
   lastMessageAt  DateTime?
   closedAt       DateTime?
   createdAt      DateTime           @default(now())
@@ -667,7 +670,7 @@ model AiConfig {
   deliveryPolicy      String?
   paymentMethods      String[] @default([])
   customInstructions  String?
-  model               String   @default("claude-sonnet-5")
+  model               String   @default("claude-opus-5-5")
   temperature         Float    @default(0.3)
   maxTokens           Int      @default(1024)
   autoReply           Boolean  @default(true)
