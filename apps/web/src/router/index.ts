@@ -26,6 +26,19 @@ router.beforeEach(async (to) => {
     return { name: 'dashboard' };
   }
 
+  const platformAdmin = Boolean(auth.user?.isPlatformAdmin);
+  if (to.meta.platform && !platformAdmin) {
+    return { name: 'forbidden' };
+  }
+  if (
+    platformAdmin &&
+    to.matched.some((record) => record.meta.requiresAuth) &&
+    !to.meta.platform &&
+    to.name !== 'profile'
+  ) {
+    return { name: 'platform' };
+  }
+
   const required = to.meta.permissions as string[] | undefined;
   if (required?.length && !auth.can(required)) {
     return { name: 'forbidden' };

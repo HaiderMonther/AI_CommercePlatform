@@ -14,6 +14,7 @@ import { PrismaService } from '@common/prisma/prisma.service';
 import { TENANT_PRISMA, TenantPrismaClient } from '@common/prisma/tenant-prisma.provider';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 import { MessagesService } from '@modules/messages/messages.service';
+import { EntitlementsService } from '@modules/billing/entitlements.service';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 import { AiAgentService } from './ai-agent.service';
 import { buildHistory, matchHandoverKeyword } from './ai-prompt';
@@ -48,6 +49,7 @@ export class AiResponderService {
     private readonly messages: MessagesService,
     private readonly conversations: ConversationsService,
     private readonly notifications: NotificationsService,
+    private readonly entitlements: EntitlementsService,
     config: ConfigService,
   ) {
     this.replyDelayMs = config.getOrThrow<AiProviderConfig>('ai').replyDelayMs;
@@ -108,6 +110,13 @@ export class AiResponderService {
     const turns = buildHistory(history);
     if (!turns) return true;
 
+    // Out of AI replies for the period, or the subscription ended: a person answers instead.
+    const allowance = await this.entitlements.aiAllowance();
+    if (!allowance.allowed) {
+      await this.handOver(conversationId, allowance.reason ?? HANDOVER.FAILURE, HANDOVER_REPLY);
+      return true;
+    }
+
     const result = await this.agent.run({
       companyId: this.requireCompanyId(),
       model,
@@ -140,6 +149,10 @@ export class AiResponderService {
     // outdated question is dropped and rewritten with the new messages.
     if (newerArrived && !result.handoverReason && result.orderIds.length === 0) {
       return false;
+    }
+
+    if (result.success) {
+      await this.entitlements.afterAiReply();
     }
 
     if (result.reply) {

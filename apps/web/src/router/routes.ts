@@ -165,6 +165,23 @@ export const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'settings/billing',
+        name: 'billing',
+        component: () => import('@/views/settings/BillingView.vue'),
+        meta: {
+          title: 'الاشتراك',
+          icon: 'mdi-credit-card-outline',
+          permissions: [PERMISSIONS.BILLING_READ],
+        },
+      },
+      {
+        path: 'platform/companies',
+        name: 'platform',
+        component: () => import('@/views/platform/PlatformCompaniesView.vue'),
+        // Platform team only; the router and the sidebar both honour `platform`.
+        meta: { title: 'الشركات المشتركة', icon: 'mdi-domain', platform: true },
+      },
+      {
         path: 'settings/channels',
         name: 'channels',
         component: () => import('@/views/settings/ChannelsView.vue'),

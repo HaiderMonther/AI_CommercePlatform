@@ -57,6 +57,8 @@ async function bootstrap(): Promise<void> {
       .addTag('AI', 'المساعد الذكي')
       .addTag('Reports', 'لوحة التحكم والتقارير')
       .addTag('Notifications', 'الإشعارات')
+      .addTag('Billing', 'الاشتراك والباقات والفواتير')
+      .addTag('Platform', 'إدارة المنصة')
       .addTag('Audit', 'سجل العمليات')
       .addTag('Health', 'فحص الخدمة')
       .build();

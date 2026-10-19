@@ -92,6 +92,10 @@
 | `MESSAGE_NOT_RETRYABLE` | 409 | إعادة الإرسال للرسائل الصادرة الفاشلة فقط |
 | `AI_NOT_CONFIGURED` | 503 | `AI_API_KEY` غير مضبوط على الخادم |
 | `AI_PROVIDER_ERROR` | 502 | فشل استدعاء Claude API أثناء التجربة |
+| `PLAN_LIMIT_REACHED` | 402 | تجاوز حد الباقة (`details.metric`، `limit`، `used`) |
+| `SUBSCRIPTION_INACTIVE` | 402 | الاشتراك منتهٍ أو ملغى |
+| `PLAN_DOWNGRADE_BLOCKED` | 409 | الباقة الأصغر لا تتسع لبيانات المتجر (`details.conflicts`) |
+| `PLAN_NOT_FOUND` · `INVOICE_NOT_FOUND` · `COMPANY_NOT_FOUND` | 404 | غير موجود |
 | `CONFLICT` | 409 | تعارض في قيمة فريدة |
 | `RATE_LIMITED` | 429 | تجاوز حد الطلبات |
 | `INTERNAL_ERROR` | 500 | خطأ غير متوقع |
@@ -607,6 +611,74 @@ NEW ─▶ CONFIRMED ─▶ PREPARING ─▶ SHIPPED ─▶ DELIVERED
 التكرار مكبوح: تنبيه المخزون مرة يومياً لكل منتج، والقناة كل 6 ساعات، والتحويل كل ساعة لنفس
 المحادثة، ما دام الإشعار السابق غير مقروء.
 
+### الاشتراك والباقات
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/billing/status` | أي عضو |
+| `GET` | `/billing/plans` | `billing.read` |
+| `GET` | `/billing/subscription` | `billing.read` |
+| `GET` | `/billing/invoices` | `billing.read` |
+| `POST` | `/billing/subscription/change` | `billing.manage` |
+| `POST` | `/billing/subscription/cancel` | `billing.manage` |
+
+**دورة الاشتراك**
+
+```
+تسجيل الشركة ─▶ TRIALING (14 يوماً، باقة BASIC)
+                    │ نهاية الفترة
+                    ▼
+                 ACTIVE + فاتورة (مستحقة بعد 7 أيام) ──نهاية كل شهر──▶ فاتورة جديدة
+                    │ تأخر الدفع                    │ إيقاف التجديد
+                    ▼                                ▼
+                 PAST_DUE (يعمل، فترة سماح 14 يوماً)  CANCELLED
+                    │ انتهاء السماح
+                    ▼
+                 EXPIRED ──── تسجيل الدفع ────▶ ACTIVE
+```
+
+| الوضع (`standing`) | الحالات | الأثر |
+| --- | --- | --- |
+| `active` | `TRIALING` · `ACTIVE` | كل شيء يعمل |
+| `grace` | `PAST_DUE` | يعمل، مع تنبيه للفريق |
+| `restricted` | `EXPIRED` · `CANCELLED` | الدخول والبيانات متاحة، لكن المساعد الذكي متوقف ولا يمكن إضافة مستخدمين أو منتجات أو قنوات (`402 SUBSCRIPTION_INACTIVE`) |
+
+**حدود الباقة** (`-1` = بلا حد):
+
+| الحد | يُفحص عند | يُحسب |
+| --- | --- | --- |
+| `USERS` | إضافة مستخدم | المستخدمون غير المحذوفين |
+| `PRODUCTS` | إضافة منتج | المنتجات غير المحذوفة |
+| `CHANNELS` | ربط قناة | القنوات المربوطة |
+| `AI_MESSAGES` | كل رد آلي | ردود المساعد في الفترة الحالية |
+
+تجاوز الحد يُرجع `402 PLAN_LIMIT_REACHED` مع `details: { metric, limit, used }`. نفاد رصيد
+المساعد يحوّل المحادثات للموظفين بدل إيقافها، وينبّه من يملك `billing.read` عند 80% وعند النفاد.
+
+`POST /billing/subscription/change` بـ`{ "tier": "BUSINESS" }` يسري فوراً، والسعر الجديد من الفاتورة
+القادمة. التخفيض يُرفض بـ`409 PLAN_DOWNGRADE_BLOCKED` إن تجاوز ما لدى المتجر حدود الباقة الجديدة
+(`details.conflicts`). اشتراك منتهٍ أو ملغى يبدأ فترة جديدة بفاتورة. `POST /billing/subscription/cancel`
+بـ`{ "cancel": true }` يوقف التجديد بنهاية الفترة، و`false` يتراجع.
+
+**الدفع** يتم خارج المنصة (تحويل بنكي، زين كاش، FIB…) ويسجّله فريق المنصة.
+
+### إدارة المنصة (مدير المنصة فقط)
+
+| الطريقة | المسار | الصلاحية |
+| --- | --- | --- |
+| `GET` | `/platform/companies` | `platform.companies.read` |
+| `GET` | `/platform/companies/:id` | `platform.companies.read` |
+| `PATCH` | `/platform/companies/:id/status` | `platform.companies.manage` |
+| `PATCH` | `/platform/companies/:id/subscription` | `platform.companies.manage` |
+| `GET` | `/platform/invoices` | `platform.companies.read` |
+| `POST` | `/platform/invoices/:id/pay` | `platform.companies.manage` |
+| `POST` | `/platform/invoices/:id/void` | `platform.companies.manage` |
+
+- `status: SUSPENDED` يمنع دخول كل أعضاء الشركة وينهي جلساتهم؛ `ACTIVE` يعيدهم.
+- `subscription` بـ`{ "tier": "...", "extendDays": 7 }`: نقل لباقة دون فحص التخفيض، و/أو تمديد
+  الفترة الحالية (أو التجريبية). تمديد اشتراك منتهٍ يعيد تشغيله حتى التاريخ الجديد.
+- `pay` يسجّل الدفعة، ويعيد تشغيل الاشتراك إن كان متوقفاً بسببها ولم تبقَ فواتير أخرى.
+
 ### الزمن الحقيقي (Socket.IO)
 
 ```
@@ -670,11 +742,3 @@ path:  /api/socket.io          auth: { token: "<accessToken>" }
 
 المصدر الوحيد للحقيقة: `apps/api/src/common/constants/permissions.constant.ts`.
 البذور تُزامن الجدول معه وتحذف ما أُزيل منه.
-
----
-
-## 6. النقاط المخططة
-
-| المرحلة | النقاط |
-| --- | --- |
-| 8 | `/billing/subscription` · `/billing/invoices` · `/billing/usage` |

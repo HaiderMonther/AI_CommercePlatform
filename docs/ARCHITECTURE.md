@@ -217,7 +217,7 @@ src/
     ├── inventory/     ✅ سجل حركة المخزون
     ├── customers/     ✅ الزبائن وحل هوية المرسل  ├── reports/      ✅ لوحة التحكم والتقارير
     ├── conversations/ ✅ صندوق المحادثات          ├── notifications/✅ الإشعارات
-    ├── messages/      ✅ الرسائل والوارد          └── billing/      ⏳ المرحلة 8
+    ├── messages/      ✅ الرسائل والوارد          └── billing/      ✅ الباقات والاشتراكات والحدود
     ├── realtime/      ✅ Socket.IO + Redis adapter
     └── orders/        ✅ الطلبات ودورة حياتها
 ```

@@ -13,6 +13,7 @@ import { PrismaService } from '@common/prisma/prisma.service';
 import { TENANT_PRISMA, TenantPrismaClient } from '@common/prisma/tenant-prisma.provider';
 import { AUDIT_ACTION, AUDIT_ENTITY } from '@modules/audit/audit.constants';
 import { AuditService } from '@modules/audit/audit.service';
+import { EntitlementsService } from '@modules/billing/entitlements.service';
 import { PasswordService } from '@modules/auth/password.service';
 import { TokenService } from '@modules/auth/token.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -44,6 +45,7 @@ export class UsersService {
     private readonly tokens: TokenService,
     private readonly audit: AuditService,
     private readonly context: TenantContextService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async findAll(query: QueryUsersDto): Promise<PaginatedResult<UserView>> {
@@ -90,6 +92,7 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto): Promise<UserView> {
+    await this.entitlements.assertCanAdd('USERS');
     await this.assertRoleBelongsToTenant(dto.roleId);
     await this.assertEmailAvailable(dto.email);
 

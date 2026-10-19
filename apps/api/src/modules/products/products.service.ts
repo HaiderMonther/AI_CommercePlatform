@@ -13,6 +13,7 @@ import { TENANT_PRISMA, TenantPrismaClient } from '@common/prisma/tenant-prisma.
 import { slugify } from '@common/utils/slug.util';
 import { AUDIT_ACTION, AUDIT_ENTITY } from '@modules/audit/audit.constants';
 import { AuditService } from '@modules/audit/audit.service';
+import { EntitlementsService } from '@modules/billing/entitlements.service';
 import { InventoryService } from '@modules/inventory/inventory.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
@@ -53,6 +54,7 @@ export class ProductsService {
     private readonly inventory: InventoryService,
     private readonly context: TenantContextService,
     private readonly audit: AuditService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async findAll(query: QueryProductsDto): Promise<PaginatedResult<unknown>> {
@@ -153,6 +155,7 @@ export class ProductsService {
    * movement in the same transaction — so even the first unit has a ledger entry.
    */
   async create(dto: CreateProductDto) {
+    await this.entitlements.assertCanAdd('PRODUCTS');
     const companyId = this.requireCompanyId();
 
     if (dto.categoryId) {

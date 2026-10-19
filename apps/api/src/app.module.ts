@@ -17,6 +17,7 @@ import { PrismaModule } from '@common/prisma/prisma.module';
 import { AiModule } from '@modules/ai/ai.module';
 import { AuditModule } from '@modules/audit/audit.module';
 import { AuthModule } from '@modules/auth/auth.module';
+import { BillingModule } from '@modules/billing/billing.module';
 import { CategoriesModule } from '@modules/categories/categories.module';
 import { ChannelsModule } from '@modules/channels/channels.module';
 import { CompaniesModule } from '@modules/companies/companies.module';
@@ -81,6 +82,7 @@ import { WebhooksModule } from '@modules/webhooks/webhooks.module';
     PrismaModule,
     AuditModule,
     NotificationsModule,
+    BillingModule,
     HealthModule,
     AuthModule,
     CompaniesModule,

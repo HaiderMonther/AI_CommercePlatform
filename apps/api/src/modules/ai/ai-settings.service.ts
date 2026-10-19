@@ -8,6 +8,7 @@ import { AppException, BadRequestAppException } from '@common/exceptions/app.exc
 import { TENANT_PRISMA, TenantPrismaClient } from '@common/prisma/tenant-prisma.provider';
 import { AUDIT_ACTION, AUDIT_ENTITY } from '@modules/audit/audit.constants';
 import { AuditService } from '@modules/audit/audit.service';
+import { EntitlementsService } from '@modules/billing/entitlements.service';
 import { AiAgentService } from './ai-agent.service';
 import { AgentProfile, buildHistory } from './ai-prompt';
 import { AI_MODELS, AI_MODEL_IDS, LANGUAGES, TONES } from './ai.constants';
@@ -48,6 +49,7 @@ export class AiSettingsService {
     private readonly context: TenantContextService,
     private readonly audit: AuditService,
     private readonly agent: AiAgentService,
+    private readonly entitlements: EntitlementsService,
     config: ConfigService,
   ) {
     this.provider = config.getOrThrow<AiProviderConfig>('ai');
@@ -115,6 +117,17 @@ export class AiSettingsService {
         ERROR_CODE.AI_NOT_CONFIGURED,
         'المساعد الذكي غير مفعّل على الخادم (مفتاح AI_API_KEY غير مضبوط)',
         503,
+      );
+    }
+
+    const allowance = await this.entitlements.aiAllowance();
+    if (!allowance.allowed) {
+      throw new AppException(
+        allowance.limit !== null && allowance.used >= allowance.limit
+          ? ERROR_CODE.PLAN_LIMIT_REACHED
+          : ERROR_CODE.SUBSCRIPTION_INACTIVE,
+        allowance.reason ?? 'المساعد الذكي غير متاح في باقتك الحالية',
+        402,
       );
     }
 

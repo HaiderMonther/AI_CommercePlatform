@@ -30,6 +30,8 @@ export const AUDIT_ENTITY = {
   CHANNEL: 'Channel',
   AI_CONFIG: 'AiConfig',
   SETTINGS: 'Settings',
+  SUBSCRIPTION: 'Subscription',
+  INVOICE: 'Invoice',
 } as const;
 
 export type AuditEntity = (typeof AUDIT_ENTITY)[keyof typeof AUDIT_ENTITY];

@@ -7,6 +7,7 @@ import {
   createTestApp,
   registerTenant,
   resetTenantData,
+  setTenantPlan,
   waitFor,
 } from './helpers/test-app';
 
@@ -103,6 +104,8 @@ describe('Channels and webhooks (e2e)', () => {
     await resetTenantData(ctx.prisma);
 
     owner = await registerTenant(ctx, { companyName: 'متجر القنوات', email: 'owner@channels.iq' });
+    // Connects WhatsApp and Messenger; the trial plan holds one channel.
+    await setTenantPlan(ctx.prisma, owner.companyId, 'BUSINESS');
     other = await registerTenant(ctx, {
       companyName: 'متجر آخر',
       email: 'owner@other-channels.iq',

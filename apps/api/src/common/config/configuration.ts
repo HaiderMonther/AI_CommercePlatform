@@ -43,6 +43,8 @@ export interface MetaConfig {
 export interface WorkerConfig {
   /** How often stuck webhooks and unsent replies are swept up; 0 disables the sweep. */
   sweepIntervalMs: number;
+  /** How often subscriptions are moved through their lifecycle; 0 disables it. */
+  billingIntervalMs: number;
 }
 
 export interface AiProviderConfig {
@@ -122,5 +124,7 @@ export default (): RootConfig => ({
     // Tests drive the sweep by hand so timing never decides an assertion.
     sweepIntervalMs:
       process.env.NODE_ENV === 'test' ? 0 : toInt(process.env.WORKER_SWEEP_INTERVAL_MS, 15_000),
+    billingIntervalMs:
+      process.env.NODE_ENV === 'test' ? 0 : toInt(process.env.BILLING_INTERVAL_MS, 60 * 60_000),
   },
 });

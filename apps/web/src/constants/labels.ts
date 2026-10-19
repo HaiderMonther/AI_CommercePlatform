@@ -73,6 +73,9 @@ export const ERROR_CODE_LABELS: Record<string, string> = {
   MESSAGE_NOT_RETRYABLE: 'يمكن إعادة إرسال الرسائل الفاشلة فقط',
   AI_NOT_CONFIGURED: 'المساعد الذكي غير مفعّل على الخادم',
   AI_PROVIDER_ERROR: 'تعذّر الاتصال بالمساعد الذكي',
+  PLAN_LIMIT_REACHED: 'وصلت لحد الباقة',
+  SUBSCRIPTION_INACTIVE: 'اشتراك المتجر منتهٍ',
+  PLAN_DOWNGRADE_BLOCKED: 'الباقة لا تتسع لبياناتك الحالية',
 };
 
 // --- Catalog (Phase 2) -------------------------------------------------------
@@ -296,4 +299,38 @@ export const AI_TOOL_LABELS: Record<string, string> = {
   get_customer_orders: 'طلبات الزبون',
   create_order: 'إنشاء طلب',
   handover_to_human: 'تحويل لموظف',
+};
+
+// --- Billing (Phase 8) -------------------------------------------------------
+
+export const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
+  TRIALING: 'فترة تجريبية',
+  ACTIVE: 'فعّال',
+  PAST_DUE: 'متأخر الدفع',
+  CANCELLED: 'ملغى',
+  EXPIRED: 'منتهٍ',
+};
+
+export const SUBSCRIPTION_STATUS_COLORS: Record<string, string> = {
+  TRIALING: 'info',
+  ACTIVE: 'success',
+  PAST_DUE: 'warning',
+  CANCELLED: 'default',
+  EXPIRED: 'error',
+};
+
+export const INVOICE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'مسودة',
+  OPEN: 'بانتظار الدفع',
+  PAID: 'مدفوعة',
+  VOID: 'ملغاة',
+  UNCOLLECTIBLE: 'غير قابلة للتحصيل',
+};
+
+export const INVOICE_STATUS_COLORS: Record<string, string> = {
+  DRAFT: 'default',
+  OPEN: 'warning',
+  PAID: 'success',
+  VOID: 'default',
+  UNCOLLECTIBLE: 'error',
 };

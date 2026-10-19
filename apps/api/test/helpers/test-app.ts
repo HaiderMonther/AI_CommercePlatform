@@ -118,3 +118,17 @@ export async function waitFor<T>(
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }
+
+/**
+ * Moves a test tenant to a bigger plan, for suites that need more than the trial allows
+ * (BASIC: 3 users, 1 channel). Plans come from the reference seed.
+ */
+export async function setTenantPlan(
+  prisma: PrismaClient,
+  companyId: string,
+  tier: 'BASIC' | 'BUSINESS' | 'ENTERPRISE',
+): Promise<void> {
+  const plan = await prisma.plan.findUniqueOrThrow({ where: { tier } });
+  await prisma.subscription.updateMany({ where: { companyId }, data: { planId: plan.id } });
+  await prisma.company.update({ where: { id: companyId }, data: { planTier: tier } });
+}

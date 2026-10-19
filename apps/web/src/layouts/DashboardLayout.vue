@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useDisplay } from 'vuetify';
 import { useRouter } from 'vue-router';
 import NotificationBell from '@/components/layout/NotificationBell.vue';
+import SubscriptionBanner from '@/components/layout/SubscriptionBanner.vue';
 import { routes } from '@/router/routes';
 import { connectRealtime, disconnectRealtime } from '@/services/realtime';
 import { useAuthStore } from '@/stores/auth.store';
@@ -31,6 +32,7 @@ interface NavItem {
   title: string;
   icon: string;
   permissions?: string[];
+  platform?: boolean;
 }
 
 /**
@@ -47,12 +49,20 @@ const navSections = computed(() => {
       title: String(route.meta?.title ?? ''),
       icon: String(route.meta?.icon ?? ''),
       permissions: route.meta?.permissions as string[] | undefined,
+      platform: Boolean(route.meta?.platform),
     }))
-    .filter((item) => !item.permissions?.length || auth.can(item.permissions));
+    .filter((item) => !item.permissions?.length || auth.can(item.permissions))
+    // The platform team sees its own area (and its profile); stores never see it.
+    .filter((item) =>
+      auth.user?.isPlatformAdmin
+        ? item.platform || item.name === 'profile'
+        : !item.platform,
+    );
 
   const settingsNames = new Set([
     'ai-settings',
     'channels',
+    'billing',
     'users',
     'roles',
     'company-settings',
@@ -193,6 +203,7 @@ async function handleLogout(): Promise<void> {
 
   <v-main>
     <v-container fluid class="pa-4 pa-md-6">
+      <SubscriptionBanner v-if="auth.user?.companyId" />
       <router-view v-slot="{ Component }">
         <v-fade-transition mode="out-in">
           <component :is="Component" />

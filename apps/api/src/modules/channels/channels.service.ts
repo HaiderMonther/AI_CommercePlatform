@@ -20,6 +20,7 @@ import { TENANT_PRISMA, TenantPrismaClient } from '@common/prisma/tenant-prisma.
 import { decryptSecret, encryptSecret } from '@common/utils/crypto.util';
 import { AUDIT_ACTION, AUDIT_ENTITY } from '@modules/audit/audit.constants';
 import { AuditService } from '@modules/audit/audit.service';
+import { EntitlementsService } from '@modules/billing/entitlements.service';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 import { CreateChannelDto, UpdateChannelDto } from './dto/channel.dto';
 import { GraphApiError, GraphChannel, MetaGraphClient } from './meta-graph.client';
@@ -78,6 +79,7 @@ export class ChannelsService {
     private readonly graph: MetaGraphClient,
     private readonly config: ConfigService,
     private readonly notifications: NotificationsService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async findAll() {
@@ -102,7 +104,9 @@ export class ChannelsService {
   /** Adds a connection and checks the token against Meta straight away. */
   async create(dto: CreateChannelDto) {
     const companyId = this.requireCompanyId();
+    // "Already connected" is the more useful answer than "plan full" for the same account.
     await this.assertAccountFree(dto.type, dto.externalId, companyId);
+    await this.entitlements.assertCanAdd('CHANNELS');
 
     let created: { id: string };
     try {

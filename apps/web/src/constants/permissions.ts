@@ -41,6 +41,7 @@ export const PERMISSIONS = {
   AI_SETTINGS_UPDATE: 'ai.settings.update',
   REPORTS_READ: 'reports.read',
   BILLING_READ: 'billing.read',
+  BILLING_MANAGE: 'billing.manage',
   AUDIT_READ: 'audit.read',
 } as const;
 
