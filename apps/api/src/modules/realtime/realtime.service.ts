@@ -30,6 +30,10 @@ export class RealtimeService {
     this.emit(ROOM.companyOrders(companyId), REALTIME_EVENT.ORDER_UPDATED, order);
   }
 
+  notificationCreated(userId: string, notification: unknown): void {
+    this.emit(ROOM.user(userId), REALTIME_EVENT.NOTIFICATION_CREATED, notification);
+  }
+
   messageCreated(conversationId: string, message: unknown): void {
     this.emit(ROOM.conversation(conversationId), REALTIME_EVENT.MESSAGE_CREATED, {
       conversationId,

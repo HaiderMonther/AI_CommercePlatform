@@ -1,7 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ChannelStatus, ChannelType, Prisma } from '@prisma/client';
+import {
+  ChannelStatus,
+  ChannelType,
+  NotificationType,
+  Prisma,
+} from '@prisma/client';
 import { ERROR_CODE } from '@common/constants/error-codes.constant';
+import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { TenantContextService } from '@common/context/tenant-context.service';
 import {
   BadRequestAppException,
@@ -14,6 +20,7 @@ import { TENANT_PRISMA, TenantPrismaClient } from '@common/prisma/tenant-prisma.
 import { decryptSecret, encryptSecret } from '@common/utils/crypto.util';
 import { AUDIT_ACTION, AUDIT_ENTITY } from '@modules/audit/audit.constants';
 import { AuditService } from '@modules/audit/audit.service';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 import { CreateChannelDto, UpdateChannelDto } from './dto/channel.dto';
 import { GraphApiError, GraphChannel, MetaGraphClient } from './meta-graph.client';
 
@@ -70,6 +77,7 @@ export class ChannelsService {
     private readonly audit: AuditService,
     private readonly graph: MetaGraphClient,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async findAll() {
@@ -260,9 +268,19 @@ export class ChannelsService {
   }
 
   async markError(id: string, message: string): Promise<void> {
-    await this.prisma.channelConnection.update({
+    const channel = await this.prisma.channelConnection.update({
       where: { id },
       data: { status: ChannelStatus.ERROR, lastError: message.slice(0, 500) },
+      select: { name: true },
+    });
+
+    await this.notifications.notify({
+      type: NotificationType.CHANNEL_ERROR,
+      title: `تعطّلت القناة: ${channel.name}`,
+      body: 'تعذّر الإرسال عبر هذه القناة. تحقق من رمز الوصول في إعدادات القنوات.',
+      data: { channelId: id },
+      permission: PERMISSIONS.CHANNELS_MANAGE,
+      dedupe: { key: 'channelId', withinMs: 6 * 60 * 60_000 },
     });
   }
 

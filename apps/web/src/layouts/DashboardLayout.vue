@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useDisplay } from 'vuetify';
 import { useRouter } from 'vue-router';
+import NotificationBell from '@/components/layout/NotificationBell.vue';
 import { routes } from '@/router/routes';
 import { connectRealtime, disconnectRealtime } from '@/services/realtime';
 import { useAuthStore } from '@/stores/auth.store';
@@ -64,9 +65,6 @@ const navSections = computed(() => {
     { label: 'الإدارة والإعدادات', items: items.filter((item) => settingsNames.has(item.name)) },
   ].filter((section) => section.items.length > 0);
 });
-
-// Phase 7 adds these screens; showing them disabled sets expectations without dead links.
-const upcoming = [{ title: 'التقارير', icon: 'mdi-chart-box-outline' }];
 
 // One socket for the whole dashboard session. Platform admins have no company, so there
 // is no tenant stream for them to receive.
@@ -132,18 +130,6 @@ async function handleLogout(): Promise<void> {
           rounded="lg"
         />
       </template>
-
-      <v-divider class="my-2" />
-      <v-list-subheader v-if="!ui.railMode || mdAndDown">قريباً</v-list-subheader>
-
-      <v-list-item
-        v-for="item in upcoming"
-        :key="item.title"
-        :prepend-icon="item.icon"
-        :title="item.title"
-        rounded="lg"
-        disabled
-      />
     </v-list>
   </v-navigation-drawer>
 
@@ -165,6 +151,8 @@ async function handleLogout(): Promise<void> {
     >
       فترة تجريبية
     </v-chip>
+
+    <NotificationBell v-if="auth.user?.companyId" />
 
     <v-btn
       :icon="ui.darkMode ? 'mdi-weather-sunny' : 'mdi-weather-night'"

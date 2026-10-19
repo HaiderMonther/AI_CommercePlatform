@@ -1,12 +1,20 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ConversationMode, ConversationStatus, CustomerStatus, SenderType } from '@prisma/client';
+import {
+  ConversationMode,
+  ConversationStatus,
+  CustomerStatus,
+  NotificationType,
+  SenderType,
+} from '@prisma/client';
 import { AiProviderConfig } from '@common/config/configuration';
+import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { TenantContextService } from '@common/context/tenant-context.service';
 import { PrismaService } from '@common/prisma/prisma.service';
 import { TENANT_PRISMA, TenantPrismaClient } from '@common/prisma/tenant-prisma.provider';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 import { MessagesService } from '@modules/messages/messages.service';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 import { AiAgentService } from './ai-agent.service';
 import { buildHistory, matchHandoverKeyword } from './ai-prompt';
 import { AiSettingsService } from './ai-settings.service';
@@ -39,6 +47,7 @@ export class AiResponderService {
     private readonly settings: AiSettingsService,
     private readonly messages: MessagesService,
     private readonly conversations: ConversationsService,
+    private readonly notifications: NotificationsService,
     config: ConfigService,
   ) {
     this.replyDelayMs = config.getOrThrow<AiProviderConfig>('ai').replyDelayMs;
@@ -156,8 +165,22 @@ export class AiResponderService {
     if (reply) {
       await this.messages.recordAiReply(conversationId, reply);
     }
-    await this.conversations.setMode(conversationId, { mode: ConversationMode.HUMAN, reason });
+    const conversation = await this.conversations.setMode(conversationId, {
+      mode: ConversationMode.HUMAN,
+      reason,
+    });
     this.logger.log(`Conversation ${conversationId} handed to staff: ${reason}`);
+
+    await this.notifications.notify({
+      type: NotificationType.HUMAN_HANDOVER,
+      title: `${conversation.customer.name} بحاجة لموظف`,
+      body: reason,
+      data: { conversationId },
+      permission: PERMISSIONS.CONVERSATIONS_REPLY,
+      // An assigned conversation concerns its assignee; otherwise everyone who can reply.
+      userIds: conversation.assignedUser ? [conversation.assignedUser.id] : undefined,
+      dedupe: { key: 'conversationId', withinMs: 60 * 60_000 },
+    });
   }
 
   /** The conversation if the AI may answer it now, with what it needs to do so. */

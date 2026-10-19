@@ -14,6 +14,8 @@ export const REALTIME_EVENT = {
   MESSAGE_UPDATED: 'message:updated',
   /** Order list row changed: created, status, payment, lines or details. */
   ORDER_UPDATED: 'order:updated',
+  /** A notification for the connected user (sent to their personal room). */
+  NOTIFICATION_CREATED: 'notification:created',
 
   CONVERSATION_JOIN: 'conversation:join',
   CONVERSATION_LEAVE: 'conversation:leave',

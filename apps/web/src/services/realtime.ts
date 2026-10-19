@@ -11,6 +11,7 @@ export const REALTIME_EVENT = {
   MESSAGE_CREATED: 'message:created',
   MESSAGE_UPDATED: 'message:updated',
   ORDER_UPDATED: 'order:updated',
+  NOTIFICATION_CREATED: 'notification:created',
 } as const;
 
 /** Server refusals that a new token will not fix; the client stops retrying on these. */

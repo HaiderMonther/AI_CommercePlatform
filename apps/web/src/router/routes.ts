@@ -79,6 +79,16 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: 'تفاصيل الطلب', permissions: [PERMISSIONS.ORDERS_READ] },
       },
       {
+        path: 'reports',
+        name: 'reports',
+        component: () => import('@/views/reports/ReportsView.vue'),
+        meta: {
+          title: 'التقارير',
+          icon: 'mdi-chart-box-outline',
+          permissions: [PERMISSIONS.REPORTS_READ],
+        },
+      },
+      {
         path: 'products',
         name: 'products',
         component: () => import('@/views/catalog/ProductsView.vue'),

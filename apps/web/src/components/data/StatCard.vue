@@ -1,5 +1,7 @@
 <script setup lang="ts">
-withDefaults(
+import { computed } from 'vue';
+
+const props = withDefaults(
   defineProps<{
     title: string;
     value: string | number;
@@ -7,8 +9,21 @@ withDefaults(
     color?: string;
     hint?: string;
     loading?: boolean;
+    /** Percentage change against the previous period; null when there is none. */
+    delta?: number | null;
+    /** What the change is measured against, e.g. "عن الـ30 يوماً السابقة". */
+    deltaLabel?: string;
   }>(),
-  { color: 'primary', hint: undefined, loading: false },
+  { color: 'primary', hint: undefined, loading: false, delta: undefined, deltaLabel: undefined },
+);
+
+// Every delta shown here is one where up is good (orders, revenue).
+const deltaTone = computed(() =>
+  props.delta == null || props.delta === 0
+    ? { color: 'medium-emphasis', icon: 'mdi-minus' }
+    : props.delta > 0
+      ? { color: 'success', icon: 'mdi-arrow-top-right' }
+      : { color: 'error', icon: 'mdi-arrow-bottom-right' },
 );
 </script>
 
@@ -27,6 +42,16 @@ withDefaults(
       </div>
     </div>
 
+    <div v-if="delta !== undefined && !loading" class="d-flex align-center ga-1 mt-2 text-caption">
+      <template v-if="delta !== null">
+        <v-icon :icon="deltaTone.icon" :color="deltaTone.color" size="14" />
+        <span :class="`text-${deltaTone.color}`" class="font-weight-medium numeric" dir="ltr">
+          {{ delta > 0 ? '+' : '' }}{{ delta }}%
+        </span>
+      </template>
+      <span v-else class="text-medium-emphasis">لا توجد فترة سابقة للمقارنة</span>
+      <span v-if="delta !== null && deltaLabel" class="text-medium-emphasis">{{ deltaLabel }}</span>
+    </div>
     <div v-if="hint" class="text-caption text-medium-emphasis mt-2">{{ hint }}</div>
   </v-card>
 </template>

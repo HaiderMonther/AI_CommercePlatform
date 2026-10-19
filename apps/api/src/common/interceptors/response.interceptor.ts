@@ -1,4 +1,10 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+  StreamableFile,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ClsService } from 'nestjs-cls';
 import { Observable, map } from 'rxjs';
@@ -35,12 +41,17 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, ApiEnvelope<T>
       ]) ?? DEFAULT_MESSAGE;
 
     return next.handle().pipe(
-      map((data) => ({
-        success: true as const,
-        message,
-        data: data ?? (null as unknown as T),
-        correlationId: this.cls.getId?.(),
-      })),
+      // A file download is the response itself; wrapping it would corrupt it.
+      map((data) =>
+        data instanceof StreamableFile
+          ? (data as unknown as ApiEnvelope<T>)
+          : {
+              success: true as const,
+              message,
+              data: data ?? (null as unknown as T),
+              correlationId: this.cls.getId?.(),
+            },
+      ),
     );
   }
 }

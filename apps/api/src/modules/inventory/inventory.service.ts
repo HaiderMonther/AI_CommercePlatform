@@ -1,6 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { InventoryMovementType, Prisma } from '@prisma/client';
+import {
+  InventoryMovementType,
+  NotificationType,
+  Prisma,
+} from '@prisma/client';
 import { ERROR_CODE } from '@common/constants/error-codes.constant';
+import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { TenantContextService } from '@common/context/tenant-context.service';
 import { PaginatedResult, paginate } from '@common/dto/pagination.dto';
 import {
@@ -12,6 +17,7 @@ import { PrismaService } from '@common/prisma/prisma.service';
 import { TENANT_PRISMA, TenantPrismaClient } from '@common/prisma/tenant-prisma.provider';
 import { AUDIT_ACTION, AUDIT_ENTITY } from '@modules/audit/audit.constants';
 import { AuditService } from '@modules/audit/audit.service';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 import { AdjustStockDto, MANUAL_MOVEMENT_TYPES } from './dto/adjust-stock.dto';
 import { QueryMovementsDto } from './dto/query-movements.dto';
 import { MOVEMENT_EFFECT, RecordMovementInput } from './inventory.types';
@@ -48,6 +54,7 @@ export class InventoryService {
     private readonly prisma: PrismaService,
     private readonly context: TenantContextService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -285,8 +292,43 @@ export class InventoryService {
     this.logger.log(
       `Stock ${dto.type} on ${dto.variantId ?? dto.productId}: ${result.stockBefore} → ${result.stockAfter}`,
     );
+    await this.alertLowStock([dto.productId]);
 
     return result;
+  }
+
+  /**
+   * Tells the team about products that reached their reorder level, once a day per
+   * product for as long as nobody reads the alert. Call after the stock change commits.
+   */
+  async alertLowStock(productIds: string[]): Promise<void> {
+    if (!productIds.length) return;
+
+    const products = await this.db.product.findMany({
+      where: {
+        id: { in: [...new Set(productIds)] },
+        deletedAt: null,
+        isActive: true,
+        trackInventory: true,
+      },
+      select: { id: true, name: true, sku: true, stock: true, lowStockThreshold: true },
+    });
+
+    for (const product of products) {
+      if (product.stock > product.lowStockThreshold) continue;
+
+      await this.notifications.notify({
+        type: NotificationType.LOW_STOCK,
+        title: product.stock === 0 ? `نفد المخزون: ${product.name}` : `مخزون منخفض: ${product.name}`,
+        body:
+          product.stock === 0
+            ? `لم يتبقَّ شيء من ${product.name} (${product.sku}).`
+            : `تبقّى ${product.stock} فقط من ${product.name} (${product.sku}).`,
+        data: { productId: product.id, stock: product.stock },
+        permission: PERMISSIONS.INVENTORY_READ,
+        dedupe: { key: 'productId', withinMs: 24 * 60 * 60_000 },
+      });
+    }
   }
 
   async findMovements(query: QueryMovementsDto): Promise<PaginatedResult<unknown>> {

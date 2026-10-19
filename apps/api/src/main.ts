@@ -55,6 +55,8 @@ async function bootstrap(): Promise<void> {
       .addTag('Channels', 'قنوات واتساب وإنستغرام وماسنجر')
       .addTag('Webhooks', 'استقبال أحداث Meta')
       .addTag('AI', 'المساعد الذكي')
+      .addTag('Reports', 'لوحة التحكم والتقارير')
+      .addTag('Notifications', 'الإشعارات')
       .addTag('Audit', 'سجل العمليات')
       .addTag('Health', 'فحص الخدمة')
       .build();

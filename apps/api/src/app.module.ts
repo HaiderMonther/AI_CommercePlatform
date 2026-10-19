@@ -25,10 +25,12 @@ import { CustomersModule } from '@modules/customers/customers.module';
 import { HealthModule } from '@modules/health/health.module';
 import { InventoryModule } from '@modules/inventory/inventory.module';
 import { MessagesModule } from '@modules/messages/messages.module';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { OrdersModule } from '@modules/orders/orders.module';
 import { PermissionsModule } from '@modules/permissions/permissions.module';
 import { ProductsModule } from '@modules/products/products.module';
 import { RealtimeModule } from '@modules/realtime/realtime.module';
+import { ReportsModule } from '@modules/reports/reports.module';
 import { RolesModule } from '@modules/roles/roles.module';
 import { UsersModule } from '@modules/users/users.module';
 import { WebhooksModule } from '@modules/webhooks/webhooks.module';
@@ -78,6 +80,7 @@ import { WebhooksModule } from '@modules/webhooks/webhooks.module';
     }),
     PrismaModule,
     AuditModule,
+    NotificationsModule,
     HealthModule,
     AuthModule,
     CompaniesModule,
@@ -95,6 +98,7 @@ import { WebhooksModule } from '@modules/webhooks/webhooks.module';
     ChannelsModule,
     WebhooksModule,
     AiModule,
+    ReportsModule,
   ],
   providers: [
     {

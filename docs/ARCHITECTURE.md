@@ -215,8 +215,8 @@ src/
     ├── products/      ✅ منتجات ومتغيرات  ├── channels/     ✅ القنوات والإرسال والـwebhooks
     ├── categories/    ✅ شجرة التصنيفات   ├── ai/           ✅ المساعد الذكي
     ├── inventory/     ✅ سجل حركة المخزون
-    ├── customers/     ✅ الزبائن وحل هوية المرسل  ├── reports/      ⏳ المرحلة 7
-    ├── conversations/ ✅ صندوق المحادثات          ├── notifications/⏳ المرحلة 7
+    ├── customers/     ✅ الزبائن وحل هوية المرسل  ├── reports/      ✅ لوحة التحكم والتقارير
+    ├── conversations/ ✅ صندوق المحادثات          ├── notifications/✅ الإشعارات
     ├── messages/      ✅ الرسائل والوارد          └── billing/      ⏳ المرحلة 8
     ├── realtime/      ✅ Socket.IO + Redis adapter
     └── orders/        ✅ الطلبات ودورة حياتها
@@ -382,7 +382,7 @@ company:{id}                 كل أعضاء الشركة (إشعارات الم
 company:{id}:conversations   من يملك conversations.read ← conversation:updated
 company:{id}:orders          من يملك orders.read ← order:updated
 conversation:{id}            بالانضمام الصريح بعد تحقق الشركة ← message:created · message:updated
-user:{id}                    إشعارات شخصية
+user:{id}                    إشعارات شخصية ← notification:created
 ```
 
 - **المصادقة في الـhandshake** بنفس الـaccess token ونفس حل الـprincipal في REST. الحراس

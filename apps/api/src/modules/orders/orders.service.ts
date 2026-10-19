@@ -2,12 +2,14 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   CustomerStatus,
   InventoryMovementType,
+  NotificationType,
   OrderSource,
   OrderStatus,
   PaymentMethod,
   Prisma,
 } from '@prisma/client';
 import { ERROR_CODE } from '@common/constants/error-codes.constant';
+import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { TenantContextService } from '@common/context/tenant-context.service';
 import { PaginatedResult, paginate } from '@common/dto/pagination.dto';
 import {
@@ -22,6 +24,7 @@ import { toLatinDigits } from '@common/utils/phone.util';
 import { AUDIT_ACTION, AUDIT_ENTITY } from '@modules/audit/audit.constants';
 import { AuditService } from '@modules/audit/audit.service';
 import { InventoryService } from '@modules/inventory/inventory.service';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 import { MOVEMENT_REFERENCE } from '@modules/inventory/inventory.types';
 import { RealtimeService } from '@modules/realtime/realtime.service';
 import {
@@ -56,6 +59,10 @@ import {
 } from './order-stock';
 
 type Tx = Prisma.TransactionClient;
+
+/** `25,000 د.ع`: how the team reads an amount in a notification. */
+const formatMoney = (amount: number, currency: string) =>
+  `${amount.toLocaleString('en-US', { maximumFractionDigits: currency === 'IQD' ? 0 : 2 })} ${currency === 'IQD' ? 'د.ع' : currency}`;
 
 /** Order numbers start above this, so the first order a shop sends reads #1001. */
 const ORDER_NUMBER_BASE = 1000;
@@ -183,6 +190,7 @@ export class OrdersService {
     private readonly inventory: InventoryService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ---------------------------------------------------------------------------------
@@ -348,6 +356,18 @@ export class OrdersService {
 
     this.logger.log(`Order #${created.orderNumber} placed (${source}) with ${lines.length} line(s)`);
     await this.publish(created.id);
+
+    await this.notifications.notify({
+      type: NotificationType.NEW_ORDER,
+      title:
+        source === OrderSource.AI
+          ? `طلب جديد #${view.orderNumber} من المساعد الذكي`
+          : `طلب جديد #${view.orderNumber}`,
+      body: `${view.customerName} · ${formatMoney(view.total, view.currency)}`,
+      data: { orderId: view.id, orderNumber: view.orderNumber },
+      permission: PERMISSIONS.ORDERS_READ,
+    });
+
     return view;
   }
 
@@ -406,6 +426,15 @@ export class OrdersService {
       oldValue: { status: from },
       newValue: { status: to, note: dto.note ?? null, cancelReason: dto.cancelReason ?? null },
     });
+
+    // Goods leaving is what lowers stock on hand.
+    if (to === OrderStatus.SHIPPED || to === OrderStatus.DELIVERED) {
+      const items = await this.db.orderItem.findMany({
+        where: { orderId: id, productId: { not: null } },
+        select: { productId: true },
+      });
+      await this.inventory.alertLowStock(items.map((item) => item.productId as string));
+    }
 
     return this.reloadAndPublish(id);
   }

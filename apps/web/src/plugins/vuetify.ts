@@ -23,6 +23,9 @@ const lightTheme = {
     error: '#DC2626',
     info: '#0284C7',
     'on-surface': '#1A202C',
+    // Chart marks. Checked against this surface for lightness band and 3:1 contrast.
+    chart: '#1867C0',
+    'chart-grid': '#E5E9F0',
   },
 };
 
@@ -40,6 +43,9 @@ const darkTheme = {
     error: '#F87171',
     info: '#38BDF8',
     'on-surface': '#E6EAF0',
+    // The light primary step is too bright for marks on this surface; one step down passes.
+    chart: '#4A8FDF',
+    'chart-grid': '#262F3B',
   },
 };
 
