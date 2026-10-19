@@ -58,7 +58,10 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
-      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      # API docs are off in production unless switched on deliberately.
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      # nginx (the web container) is the one proxy in front of the API.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       META_APP_ID: ${META_APP_ID:-}
       META_APP_SECRET: ${META_APP_SECRET:-}
       META_VERIFY_TOKEN: ${META_VERIFY_TOKEN:-}

@@ -31,7 +31,10 @@ export class HealthService {
       await this.prisma.ping();
       return { status: 'up', latencyMs: Date.now() - startedAt };
     } catch (error) {
-      this.logger.error('Database health check failed', error instanceof Error ? error.stack : error);
+      this.logger.error(
+        'Database health check failed',
+        error instanceof Error ? error.stack : error,
+      );
       return { status: 'down', error: 'unreachable' };
     }
   }

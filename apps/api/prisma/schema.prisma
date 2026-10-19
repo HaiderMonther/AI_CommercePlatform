@@ -622,6 +622,9 @@ model Conversation {
   @@index([companyId, status, lastMessageAt])
   @@index([companyId, assignedUserId])
   @@index([customerId])
+  // New conversations and handovers per period (reports).
+  @@index([companyId, createdAt])
+  @@index([companyId, handoverAt])
   @@map("conversations")
 }
 
@@ -649,6 +652,8 @@ model Message {
   @@unique([companyId, externalId])
   @@index([conversationId, createdAt])
   @@index([companyId, createdAt])
+  // The outbound sweep (every 15s, all companies) looks for unsent replies.
+  @@index([direction, deliveryStatus, createdAt])
   @@map("messages")
 }
 
@@ -754,6 +759,8 @@ model Order {
   @@index([companyId, createdAt])
   @@index([customerId])
   @@index([conversationId])
+  // Delivered revenue by delivery date (reports, dashboard).
+  @@index([companyId, deliveredAt])
   @@map("orders")
 }
 
@@ -838,6 +845,8 @@ model Subscription {
   invoices Invoice[]
 
   @@index([companyId, status])
+  // The billing run scans live subscriptions across all companies.
+  @@index([status, currentPeriodEnd])
   @@map("subscriptions")
 }
 
@@ -861,6 +870,7 @@ model Invoice {
   subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   @@index([companyId, status])
+  @@index([subscriptionId, status])
   @@map("invoices")
 }
 

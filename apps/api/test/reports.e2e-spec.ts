@@ -108,25 +108,26 @@ describe('Dashboard, reports and notifications (e2e)', () => {
     });
 
     it('alerts once when shipping brings stock to its reorder level', async () => {
+      // The owner acts, so the sales agent (who can see inventory) is the one alerted.
       await ctx
         .http()
         .patch(`/api/v1/orders/${orderId}/status`)
-        .set('Authorization', agent())
+        .set('Authorization', auth())
         .send({ status: 'SHIPPED' })
         .expect(200);
 
-      // A manual stock-out on the same product must not raise a second alert.
+      // A further stock-out on the same product must not raise a second alert.
       await ctx
         .http()
         .post('/api/v1/inventory/adjust')
-        .set('Authorization', agent())
+        .set('Authorization', auth())
         .send({ productId, type: 'STOCK_OUT', quantity: 1 })
         .expect(201);
 
       const list = await ctx
         .http()
         .get('/api/v1/notifications')
-        .set('Authorization', auth())
+        .set('Authorization', agent())
         .expect(200);
       const alerts = list.body.data.items.filter((n: { type: string }) => n.type === 'LOW_STOCK');
       expect(alerts).toHaveLength(1);
@@ -162,18 +163,18 @@ describe('Dashboard, reports and notifications (e2e)', () => {
     });
 
     it("cannot read or clear someone else's notification", async () => {
-      const mine = await ctx.prisma.notification.findFirstOrThrow({
-        where: { companyId: owner.companyId, userId: owner.ownerId },
+      const theirs = await ctx.prisma.notification.findFirstOrThrow({
+        where: { companyId: owner.companyId, user: { email: 'agent@reports.iq' } },
       });
 
       await ctx
         .http()
-        .post(`/api/v1/notifications/${mine.id}/read`)
-        .set('Authorization', agent())
+        .post(`/api/v1/notifications/${theirs.id}/read`)
+        .set('Authorization', auth())
         .expect(404);
       await ctx
         .http()
-        .post(`/api/v1/notifications/${mine.id}/read`)
+        .post(`/api/v1/notifications/${theirs.id}/read`)
         .set('Authorization', bearer(other.accessToken))
         .expect(404);
     });

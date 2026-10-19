@@ -50,13 +50,10 @@ export class DashboardService {
       from: addDays(today, -(PERIOD_DAYS - 1)),
       to: today,
     });
-    const trend = await this.reports.range({ from: addDays(today, -(TREND_DAYS - 1)), to: today });
-    const todayRange = await this.reports.range({ from: today, to: today });
 
-    const [report, trendReport, todayReport, open, recent] = await Promise.all([
+    // One report: the trend and today are the tail of the period's daily series.
+    const [report, open, recent] = await Promise.all([
       this.reports.sales(period),
-      this.reports.sales(trend),
-      this.reports.sales(todayRange),
       this.db.order.groupBy({
         by: ['status'],
         where: { status: { in: OPEN_ORDER_STATUSES } },
@@ -78,8 +75,11 @@ export class DashboardService {
       }),
     ]);
 
+    const series = report.series;
+    const latest = series[series.length - 1];
+
     return {
-      today: { orders: todayReport.totals.orders, value: todayReport.totals.value },
+      today: { orders: latest?.orders ?? 0, value: latest?.value ?? 0 },
       period: {
         days: PERIOD_DAYS,
         orders: report.totals.orders,
@@ -92,7 +92,7 @@ export class DashboardService {
           report.totals.orders,
         ),
       },
-      trend: trendReport.series.map(({ day, orders, value }) => ({ day, orders, value })),
+      trend: series.slice(-TREND_DAYS).map(({ day, orders, value }) => ({ day, orders, value })),
       open: Object.fromEntries(
         OPEN_ORDER_STATUSES.map((status) => [
           status,

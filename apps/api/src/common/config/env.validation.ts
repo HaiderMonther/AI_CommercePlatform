@@ -65,5 +65,36 @@ export function validateEnv(config: Record<string, unknown>) {
     throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be different values');
   }
 
+  if (validated.NODE_ENV === NodeEnv.Production) {
+    const problems = productionProblems(config);
+    if (problems.length) {
+      throw new Error(`Unsafe production configuration:\n  - ${problems.join('\n  - ')}`);
+    }
+  }
+
   return config;
+}
+
+/** Settings that are tolerable in development and a hole in production. */
+export function productionProblems(config: Record<string, unknown>): string[] {
+  const problems: string[] = [];
+  const value = (key: string) => (typeof config[key] === 'string' ? (config[key] as string) : '');
+
+  if (!value('ENCRYPTION_KEY')) {
+    problems.push('ENCRYPTION_KEY is required: channel access tokens are encrypted with it');
+  }
+  const origins = value('CORS_ORIGINS') || value('FRONTEND_URL');
+  if (origins.split(',').some((origin) => origin.trim() === '*')) {
+    problems.push('CORS_ORIGINS must list the dashboard origin, not "*"');
+  }
+  if (
+    /localhost|127\.0\.0\.1/.test(value('DATABASE_URL')) &&
+    value('ALLOW_LOCAL_DATABASE') !== 'true'
+  ) {
+    // Usually a dev .env copied into production; set ALLOW_LOCAL_DATABASE=true if intended.
+    problems.push(
+      'DATABASE_URL points at localhost (set ALLOW_LOCAL_DATABASE=true if that is intended)',
+    );
+  }
+  return problems;
 }

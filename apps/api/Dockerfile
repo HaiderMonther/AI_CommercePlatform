@@ -7,22 +7,27 @@ COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
 # The workspace lockfile covers both apps; only the API workspace is installed here.
-RUN npm ci --workspace @ai-commerce/api --include-workspace-root
+# npm hoists almost everything to /app/node_modules; apps/api/node_modules only holds
+# version conflicts, so it may not exist — create it so later stages can copy it either way.
+RUN npm ci --workspace @ai-commerce/api --include-workspace-root \
+  && mkdir -p apps/api/node_modules
 
 # ---- build -----------------------------------------------------------------
 FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY package.json package-lock.json ./
 COPY apps/api ./apps/api
 
 WORKDIR /app/apps/api
+# `prisma generate` writes the client into /app/node_modules/.prisma, so the runtime
+# stage must take node_modules from here, not from `deps`.
 RUN npx prisma generate && npm run build
 
 # ---- runtime ---------------------------------------------------------------
 FROM node:22-alpine AS runtime
-WORKDIR /app
 
 ENV NODE_ENV=production
 
@@ -31,13 +36,16 @@ RUN apk add --no-cache dumb-init curl \
   && addgroup -S nodejs -g 1001 \
   && adduser -S nestjs -u 1001
 
-COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=build --chown=nestjs:nodejs /app/apps/api/dist ./dist
-COPY --from=build --chown=nestjs:nodejs /app/apps/api/dist-seed ./dist-seed
-COPY --from=build --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
-COPY --chown=nestjs:nodejs apps/api/package.json ./package.json
-COPY --chown=nestjs:nodejs apps/api/prisma ./prisma
+# Same layout as the workspace, so Node resolves apps/api/node_modules first and then
+# the hoisted /app/node_modules.
+COPY --from=build --chown=nestjs:nodejs /app/node_modules /app/node_modules
+COPY --from=build --chown=nestjs:nodejs /app/apps/api/node_modules /app/apps/api/node_modules
+COPY --from=build --chown=nestjs:nodejs /app/apps/api/dist /app/apps/api/dist
+COPY --from=build --chown=nestjs:nodejs /app/apps/api/dist-seed /app/apps/api/dist-seed
+COPY --chown=nestjs:nodejs apps/api/package.json /app/apps/api/package.json
+COPY --chown=nestjs:nodejs apps/api/prisma /app/apps/api/prisma
 
+WORKDIR /app/apps/api
 USER nestjs
 EXPOSE 3000
 

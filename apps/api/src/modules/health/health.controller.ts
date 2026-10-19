@@ -1,6 +1,8 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpStatus } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ERROR_CODE } from '@common/constants/error-codes.constant';
 import { Public } from '@common/decorators/public.decorator';
+import { AppException } from '@common/exceptions/app.exception';
 import { ResponseMessage } from '@common/decorators/response-message.decorator';
 import { HealthService } from './health.service';
 
@@ -14,8 +16,18 @@ export class HealthController {
   @ResponseMessage('الخدمة تعمل')
   @ApiOperation({ summary: 'فحص جاهزية الخدمة وقاعدة البيانات' })
   @ApiOkResponse({ description: 'حالة الخدمة ومكوناتها' })
-  check() {
-    return this.healthService.check();
+  async check() {
+    const report = await this.healthService.check();
+    // A load balancer reads the status code, not the body: 503 takes the instance out.
+    if (report.status !== 'ok') {
+      throw new AppException(
+        ERROR_CODE.SERVICE_UNAVAILABLE,
+        'الخدمة غير جاهزة',
+        HttpStatus.SERVICE_UNAVAILABLE,
+        report,
+      );
+    }
+    return report;
   }
 
   @Public()

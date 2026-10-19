@@ -5,6 +5,12 @@ export interface AppConfig {
   frontendUrl: string;
   corsOrigins: string[];
   swaggerEnabled: boolean;
+  /**
+   * Express `trust proxy`: how many proxies sit in front of the API. Behind nginx (the
+   * Docker setup) it must be 1, or every visitor shares nginx's IP for rate limits and
+   * audit entries.
+   */
+  trustProxy: boolean | number | string;
   logLevel: string;
 }
 
@@ -67,6 +73,13 @@ export interface RootConfig {
   ai: AiProviderConfig;
 }
 
+/** `true`/`false`, a hop count, or a list of trusted addresses/subnets. */
+export function parseTrustProxy(value: string | undefined): boolean | number | string {
+  if (value === undefined || value.trim() === '' || value === 'false') return false;
+  if (value === 'true') return true;
+  return /^\d+$/.test(value.trim()) ? Number(value) : value.trim();
+}
+
 const toInt = (value: string | undefined, fallback: number): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -87,7 +100,12 @@ export default (): RootConfig => ({
     corsOrigins: toList(
       process.env.CORS_ORIGINS ?? process.env.FRONTEND_URL ?? 'http://localhost:5173',
     ),
-    swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
+    // Off in production unless asked for: the docs map every endpoint for an attacker.
+    swaggerEnabled:
+      process.env.SWAGGER_ENABLED !== undefined
+        ? process.env.SWAGGER_ENABLED === 'true'
+        : process.env.NODE_ENV !== 'production',
+    trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
     logLevel: process.env.LOG_LEVEL ?? 'log',
   },
   jwt: {

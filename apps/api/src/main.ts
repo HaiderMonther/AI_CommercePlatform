@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -9,13 +10,18 @@ import { RealtimeIoAdapter } from '@modules/realtime/realtime-io.adapter';
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
   // rawBody: webhook signatures are computed over the exact bytes Meta sent.
-  const app = await NestFactory.create(AppModule, { bufferLogs: false, rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: false,
+    rawBody: true,
+  });
   const config = app.get(ConfigService);
 
   const port = config.getOrThrow<number>('app.port');
   const apiPrefix = config.getOrThrow<string>('app.apiPrefix');
   const corsOrigins = config.getOrThrow<string[]>('app.corsOrigins');
   const swaggerEnabled = config.get<boolean>('app.swaggerEnabled');
+
+  app.set('trust proxy', config.get('app.trustProxy') ?? false);
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.enableCors({

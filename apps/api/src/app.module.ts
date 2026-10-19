@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { Request } from 'express';
 import configuration from '@common/config/configuration';
 import { validateEnv } from '@common/config/env.validation';
+import { throttlerOptions } from '@common/config/throttle';
 import { AppClsStore, CLS_KEYS } from '@common/context/request-context';
 import { AllExceptionsFilter } from '@common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -64,20 +65,7 @@ import { WebhooksModule } from '@modules/webhooks/webhooks.module';
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        throttlers: [
-          {
-            name: 'default',
-            ttl: (config.get<number>('throttle.ttlSeconds') ?? 60) * 1000,
-            limit: config.get<number>('throttle.limit') ?? 120,
-          },
-          {
-            name: 'auth',
-            ttl: 60_000,
-            limit: config.get<number>('throttle.authLimit') ?? 10,
-          },
-        ],
-      }),
+      useFactory: throttlerOptions,
     }),
     PrismaModule,
     AuditModule,

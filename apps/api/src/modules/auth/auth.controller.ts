@@ -8,7 +8,7 @@ import {
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { AuthRateLimit } from '@common/config/throttle';
 import { Request } from 'express';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { Public } from '@common/decorators/public.decorator';
@@ -23,8 +23,6 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterCompanyDto } from './dto/register-company.dto';
 import { SessionMetadata } from './token.service';
 
-const AUTH_THROTTLE = { auth: { limit: 10, ttl: 60_000 } };
-
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -32,7 +30,7 @@ export class AuthController {
 
   @Public()
   @Post('register')
-  @Throttle(AUTH_THROTTLE)
+  @AuthRateLimit()
   @ResponseMessage('تم إنشاء الحساب بنجاح')
   @ApiOperation({ summary: 'تسجيل شركة جديدة مع حساب المالك' })
   @ApiBody({ type: RegisterCompanyDto })
@@ -44,7 +42,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @Throttle(AUTH_THROTTLE)
+  @AuthRateLimit()
   @ResponseMessage('تم تسجيل الدخول بنجاح')
   @ApiOperation({ summary: 'تسجيل الدخول والحصول على رموز الجلسة' })
   @ApiOkResponse({ type: LoginResponseDto })
@@ -57,11 +55,14 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @Throttle(AUTH_THROTTLE)
+  @AuthRateLimit()
   @ResponseMessage('تم تجديد الجلسة')
   @ApiOperation({ summary: 'تجديد رمز الدخول باستخدام رمز التحديث' })
   @ApiOkResponse({ type: LoginResponseDto })
-  @ApiUnauthorizedResponse({ type: ApiErrorResponse, description: 'TOKEN_INVALID أو REFRESH_TOKEN_REUSED' })
+  @ApiUnauthorizedResponse({
+    type: ApiErrorResponse,
+    description: 'TOKEN_INVALID أو REFRESH_TOKEN_REUSED',
+  })
   refresh(@Body() dto: RefreshTokenDto, @Req() request: Request) {
     return this.authService.refresh(dto.refreshToken, sessionMetadata(request));
   }
@@ -89,10 +90,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ResponseMessage('تم تغيير كلمة المرور، الرجاء تسجيل الدخول مرة أخرى')
   @ApiOperation({ summary: 'تغيير كلمة المرور وإبطال جميع الجلسات' })
-  async changePassword(
-    @Body() dto: ChangePasswordDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async changePassword(@Body() dto: ChangePasswordDto, @CurrentUser() user: AuthenticatedUser) {
     await this.authService.changePassword(user, dto);
     return null;
   }
